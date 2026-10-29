@@ -257,6 +257,135 @@ public final class SettingsViewHelper {
         return container;
     }
 
+    public static View createSubtitledRow(Context ctx, int iconRes, int iconBgColor, String title, String subtitle,
+                                         boolean showChevron, View.OnClickListener onClick, boolean showDivider) {
+        LinearLayout container = new LinearLayout(ctx);
+        container.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(ThemeTokens.dp(ctx, 58));
+        row.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 10),
+                ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 10));
+
+        if (iconRes != 0) {
+            FrameLayout iconBox = new FrameLayout(ctx);
+            int bSize = ThemeTokens.dp(ctx, 32);
+            iconBox.setLayoutParams(new LinearLayout.LayoutParams(bSize, bSize));
+
+            GradientDrawable ibBg = new GradientDrawable();
+            ibBg.setCornerRadius(ThemeTokens.dp(ctx, 8));
+            ibBg.setColor(iconBgColor);
+            iconBox.setBackground(ibBg);
+
+            ImageView iv = new ImageView(ctx);
+            iv.setImageResource(iconRes);
+            iv.setColorFilter(Color.WHITE);
+            int iSize = ThemeTokens.dp(ctx, 18);
+            FrameLayout.LayoutParams ivLp = new FrameLayout.LayoutParams(iSize, iSize);
+            ivLp.gravity = Gravity.CENTER;
+            iconBox.addView(iv, ivLp);
+
+            row.addView(iconBox);
+        }
+
+        LinearLayout textCol = new LinearLayout(ctx);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        if (iconRes != 0) {
+            tlp.leftMargin = ThemeTokens.dp(ctx, 14);
+        }
+        textCol.setLayoutParams(tlp);
+
+        TextView tvTitle = new TextView(ctx);
+        tvTitle.setText(title);
+        tvTitle.setTextColor(ThemeTokens.getLabelColor(ctx));
+        tvTitle.setTextSize(16);
+        tvTitle.setTypeface(Typeface.DEFAULT);
+        textCol.addView(tvTitle);
+
+        if (subtitle != null && !subtitle.isEmpty()) {
+            TextView tvSub = new TextView(ctx);
+            tvSub.setText(subtitle);
+            tvSub.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
+            tvSub.setTextSize(13);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            slp.topMargin = ThemeTokens.dp(ctx, 2);
+            textCol.addView(tvSub, slp);
+        }
+        row.addView(textCol);
+
+        if (showChevron) {
+            ImageView chevron = new ImageView(ctx);
+            chevron.setImageResource(R.drawable.ic_chevron_right);
+            chevron.setColorFilter(ThemeTokens.getSecondaryLabelColor(ctx));
+            chevron.setAlpha(0.35f);
+            int cSize = ThemeTokens.dp(ctx, 16);
+            row.addView(chevron, new LinearLayout.LayoutParams(cSize, cSize));
+        }
+
+        if (onClick != null) {
+            attachTapSpringEffect(row);
+            row.setOnClickListener(onClick);
+        }
+
+        container.addView(row);
+
+        if (showDivider) {
+            View div = new View(ctx);
+            div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(ctx));
+            int divH = Math.max(1, ThemeTokens.dp(ctx, 1) / 2);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, divH);
+            dlp.leftMargin = ThemeTokens.dp(ctx, iconRes != 0 ? 58 : 16);
+            div.setLayoutParams(dlp);
+            container.addView(div);
+        }
+
+        return container;
+    }
+
+    public static View createSubtitledSwitchRow(Context ctx, String title, String subtitle, boolean isChecked,
+                                               IosSwitchView.OnCheckedChangeListener listener) {
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setMinimumHeight(ThemeTokens.dp(ctx, 60));
+        row.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 12),
+                ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 12));
+
+        LinearLayout textCol = new LinearLayout(ctx);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tlp.rightMargin = ThemeTokens.dp(ctx, 12);
+        textCol.setLayoutParams(tlp);
+
+        TextView tvTitle = new TextView(ctx);
+        tvTitle.setText(title);
+        tvTitle.setTextColor(ThemeTokens.getLabelColor(ctx));
+        tvTitle.setTextSize(16);
+        tvTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        textCol.addView(tvTitle);
+
+        if (subtitle != null && !subtitle.isEmpty()) {
+            TextView tvSub = new TextView(ctx);
+            tvSub.setText(subtitle);
+            tvSub.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
+            tvSub.setTextSize(13);
+            LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            slp.topMargin = ThemeTokens.dp(ctx, 2);
+            textCol.addView(tvSub, slp);
+        }
+        row.addView(textCol);
+
+        IosSwitchView switchView = new IosSwitchView(ctx);
+        switchView.setChecked(isChecked);
+        switchView.setOnCheckedChangeListener(listener);
+        row.addView(switchView);
+
+        return row;
+    }
+
     private static void attachTapSpringEffect(View v) {
         v.setOnTouchListener((view, event) -> {
             switch (event.getAction()) {

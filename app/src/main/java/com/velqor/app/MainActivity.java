@@ -19,6 +19,7 @@ import android.os.Environment;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.view.View;
@@ -43,6 +44,7 @@ import com.velqor.app.files.FileRepository;
 import com.velqor.app.files.StorageScanner;
 import com.velqor.app.files.TextFileIO;
 import com.velqor.app.files.TrashManager;
+import com.velqor.app.files.WirelessDebugManager;
 import com.velqor.app.tokens.ThemeTokens;
 import com.velqor.app.ui.DonutChartView;
 import com.velqor.app.ui.FileRowView;
@@ -1733,7 +1735,7 @@ public class MainActivity extends Activity {
         String themeMode = prefs.getString("theme_mode", "dark");
         int accentColor = ThemeTokens.getAccentColor(this);
 
-        View profileCard = SettingsViewHelper.createProfileCard(this, "VELQOR PRO", "v2.1.1 (Build 16)", v -> showAboutSheet());
+        View profileCard = SettingsViewHelper.createProfileCard(this, "VELQOR PRO", "v2.1.2 (Build 17)", v -> showAboutSheet());
         mFileListGroup.addView(profileCard);
 
         mFileListGroup.addView(SettingsViewHelper.createGroupHeader(this, "Giao diện"));
@@ -1778,6 +1780,15 @@ public class MainActivity extends Activity {
                 "Phân tích dung lượng", "Xem chi tiết", true, v -> showStorageDashboardSheet(), false));
         mFileListGroup.addView(gStorage);
 
+        mFileListGroup.addView(SettingsViewHelper.createGroupHeader(this, "Hệ thống & Android/data"));
+        LinearLayout gSystem = SettingsViewHelper.createGroupCard(this);
+
+        boolean isPaired = WirelessDebugManager.isPaired(this);
+        String pairStatus = isPaired ? "Đã ghép nối (" + WirelessDebugManager.getPairedDeviceName(this) + ")" : "Ghép nối 6 mã";
+        gSystem.addView(SettingsViewHelper.createRow(this, R.drawable.ic_wifi, 0xFF007AFF,
+                "Gỡ lỗi qua Wi-Fi", pairStatus, true, v -> showWirelessDebugSheet(), false));
+        mFileListGroup.addView(gSystem);
+
         mFileListGroup.addView(SettingsViewHelper.createGroupHeader(this, "Hiệu năng"));
         LinearLayout gPerf = SettingsViewHelper.createGroupCard(this);
 
@@ -1806,7 +1817,7 @@ public class MainActivity extends Activity {
         LinearLayout gInfo = SettingsViewHelper.createGroupCard(this);
 
         gInfo.addView(SettingsViewHelper.createRow(this, R.drawable.ic_info, 0xFF8E8E93,
-                "Phiên bản", "v2.1.1 (Build 16)", true, v -> showAboutSheet(), true));
+                "Phiên bản", "v2.1.2 (Build 17)", true, v -> showAboutSheet(), true));
 
         gInfo.addView(SettingsViewHelper.createRow(this, R.drawable.ic_star, 0xFF007AFF,
                 "Giới thiệu VELQOR", "", true, v -> showAboutSheet(), false));
@@ -1822,6 +1833,259 @@ public class MainActivity extends Activity {
         if (color == ThemeTokens.ACCENT_RED) return "Imperial Red";
         if (color == ThemeTokens.ACCENT_GREEN) return "Emerald Green";
         return "Apple Blue";
+    }
+
+    private void showWirelessDebugSheet() {
+        Dialog dialog = createManagedDialog();
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Gỡ lỗi qua Wi-Fi");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("Ghép nối không dây để mở khóa truy cập toàn diện /Android/data");
+        sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        sub.setTextSize(13);
+        sheet.addView(sub);
+
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 360));
+        svLp.topMargin = ThemeTokens.dp(this, 12);
+        sv.setLayoutParams(svLp);
+
+        LinearLayout content = new LinearLayout(this);
+        content.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout card1 = SettingsViewHelper.createGroupCard(this);
+        boolean isDebugOn = WirelessDebugManager.isDebugEnabled(this);
+        card1.addView(SettingsViewHelper.createSubtitledSwitchRow(this,
+                "Gỡ lỗi qua Wi-Fi", "Bật chế độ gỡ lỗi khi có kết nối Wi-Fi", isDebugOn,
+                (switchView, isChecked) -> {
+                    WirelessDebugManager.setDebugEnabled(this, isChecked);
+                    try {
+                        startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+                    } catch (Exception ignored) {}
+                }));
+        content.addView(card1);
+
+        LinearLayout card2 = SettingsViewHelper.createGroupCard(this);
+        LinearLayout.LayoutParams c2Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        c2Lp.topMargin = ThemeTokens.dp(this, 12);
+        card2.setLayoutParams(c2Lp);
+
+        card2.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+                "Tên thiết bị", WirelessDebugManager.getDeviceName(), false, null, true));
+
+        String ipAndPort = WirelessDebugManager.getDeviceIp(this) + ":" + WirelessDebugManager.getPairingPort(this);
+        card2.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+                "Địa chỉ IP và cổng", ipAndPort, false, null, false));
+        content.addView(card2);
+
+        LinearLayout card3 = SettingsViewHelper.createGroupCard(this);
+        LinearLayout.LayoutParams c3Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        c3Lp.topMargin = ThemeTokens.dp(this, 12);
+        card3.setLayoutParams(c3Lp);
+
+        card3.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+                "Ghép nối thiết bị bằng mã QR", "Ghép nối các thiết bị mới bằng trình quét mã QR",
+                false, v -> Toast.makeText(this, "Hãy dùng ghép nối bằng mã gồm 6 chữ số bên dưới", Toast.LENGTH_SHORT).show(), true));
+
+        card3.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+                "Ghép nối thiết bị bằng mã ghép nối", "Ghép nối các thiết bị mới bằng mã gồm 6 chữ số",
+                true, v -> showPairingCodeDialog(dialog), false));
+        content.addView(card3);
+
+        TextView headerPaired = SettingsViewHelper.createGroupHeader(this, "Thiết bị đã ghép nối");
+        content.addView(headerPaired);
+
+        LinearLayout card4 = SettingsViewHelper.createGroupCard(this);
+        boolean isPaired = WirelessDebugManager.isPaired(this);
+        if (isPaired) {
+            String pairedName = WirelessDebugManager.getPairedDeviceName(this);
+            card4.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_gear, 0xFF5856D6,
+                    pairedName, "Đã mở khóa /storage/emulated/0/Android/data", true, v -> {
+                        IosSheet.showConfirmDialog(this, "Hủy ghép nối",
+                                "Bạn có muốn hủy ghép nối thiết bị '" + pairedName + "' không?", "Hủy ghép nối", () -> {
+                                    WirelessDebugManager.unpair(this);
+                                    Toast.makeText(this, "Đã hủy ghép nối thiết bị", Toast.LENGTH_SHORT).show();
+                                    dialog.dismiss();
+                                    showSettingsTab();
+                                });
+                    }, false));
+        } else {
+            card4.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_info, 0xFF8E8E93,
+                    "Chưa có thiết bị ghép nối", "Chạm để ghép nối bằng mã 6 chữ số", true,
+                    v -> showPairingCodeDialog(dialog), false));
+        }
+        content.addView(card4);
+
+        sv.addView(content);
+        sheet.addView(sv);
+
+        LinearLayout cancelCard = IosSheet.createActionGroup(this);
+        TextView btnClose = new TextView(this);
+        btnClose.setText("Đóng");
+        btnClose.setTextColor(ThemeTokens.getAccentColor(this));
+        btnClose.setTextSize(17);
+        btnClose.setTypeface(Typeface.DEFAULT_BOLD);
+        btnClose.setGravity(Gravity.CENTER);
+        btnClose.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 50)));
+        btnClose.setOnClickListener(v -> dialog.dismiss());
+        cancelCard.addView(btnClose);
+        sheet.addView(cancelCard);
+
+        IosSheet.show(dialog, sheet);
+    }
+
+    private void showPairingCodeDialog(Dialog parentDialog) {
+        Dialog dialog = createManagedDialog();
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Ghép nối bằng mã 6 chữ số");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("Mở chia đôi màn hình (Split Screen) hoặc cửa sổ nổi với Cài đặt > Gỡ lỗi qua Wi-Fi > Ghép nối thiết bị bằng mã ghép nối.");
+        sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        sub.setTextSize(13);
+        sheet.addView(sub);
+
+        LinearLayout card = IosSheet.createActionGroup(this);
+        card.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 14),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 14));
+
+        TextView lblPort = new TextView(this);
+        lblPort.setText("Cổng ghép nối (Port)");
+        lblPort.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        lblPort.setTextSize(12);
+        card.addView(lblPort);
+
+        EditText etPort = new EditText(this);
+        etPort.setText(WirelessDebugManager.getPairingPort(this));
+        etPort.setHint("Ví dụ: 37051");
+        etPort.setHintTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        etPort.setTextColor(ThemeTokens.getLabelColor(this));
+        etPort.setInputType(InputType.TYPE_CLASS_NUMBER);
+        etPort.setSingleLine(true);
+        etPort.setPadding(ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 10),
+                ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 10));
+
+        GradientDrawable pBg = new GradientDrawable();
+        pBg.setCornerRadius(ThemeTokens.dp(this, 10));
+        pBg.setColor(ThemeTokens.getActionGroupBgColor(this));
+        pBg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
+        etPort.setBackground(pBg);
+        LinearLayout.LayoutParams plp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        plp.topMargin = ThemeTokens.dp(this, 4);
+        plp.bottomMargin = ThemeTokens.dp(this, 12);
+        card.addView(etPort, plp);
+
+        TextView lblCode = new TextView(this);
+        lblCode.setText("Mã ghép nối (6 chữ số)");
+        lblCode.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        lblCode.setTextSize(12);
+        card.addView(lblCode);
+
+        EditText etCode = new EditText(this);
+        etCode.setHint("••••••");
+        etCode.setHintTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        etCode.setTextColor(ThemeTokens.getLabelColor(this));
+        etCode.setTextSize(22);
+        etCode.setTypeface(Typeface.DEFAULT_BOLD);
+        etCode.setGravity(Gravity.CENTER);
+        etCode.setInputType(InputType.TYPE_CLASS_NUMBER);
+        etCode.setSingleLine(true);
+        etCode.setPadding(ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 12),
+                ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 12));
+
+        GradientDrawable cBg = new GradientDrawable();
+        cBg.setCornerRadius(ThemeTokens.dp(this, 10));
+        cBg.setColor(ThemeTokens.getActionGroupBgColor(this));
+        cBg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
+        etCode.setBackground(cBg);
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.topMargin = ThemeTokens.dp(this, 4);
+        card.addView(etCode, clp);
+
+        TextView btnDevSettings = new TextView(this);
+        btnDevSettings.setText("Mở Cài đặt nhà phát triển");
+        btnDevSettings.setTextColor(ThemeTokens.getAccentColor(this));
+        btnDevSettings.setTextSize(14);
+        btnDevSettings.setGravity(Gravity.CENTER);
+        btnDevSettings.setPadding(0, ThemeTokens.dp(this, 12), 0, ThemeTokens.dp(this, 4));
+        btnDevSettings.setOnClickListener(v -> {
+            try {
+                startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+            } catch (Exception e) {
+                Toast.makeText(this, "Không thể mở cài đặt: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+        });
+        card.addView(btnDevSettings);
+        sheet.addView(card);
+
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        btnRow.setGravity(Gravity.END);
+        LinearLayout.LayoutParams brlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        brlp.topMargin = ThemeTokens.dp(this, 16);
+        btnRow.setLayoutParams(brlp);
+
+        TextView btnCancel = new TextView(this);
+        btnCancel.setText("Hủy");
+        btnCancel.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        btnCancel.setTextSize(16);
+        btnCancel.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10));
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        btnRow.addView(btnCancel);
+
+        TextView btnPair = new TextView(this);
+        btnPair.setText("Ghép nối");
+        btnPair.setTextColor(Color.WHITE);
+        btnPair.setTextSize(16);
+        btnPair.setTypeface(Typeface.DEFAULT_BOLD);
+        btnPair.setPadding(ThemeTokens.dp(this, 24), ThemeTokens.dp(this, 10),
+                ThemeTokens.dp(this, 24), ThemeTokens.dp(this, 10));
+
+        GradientDrawable pairBg = new GradientDrawable();
+        pairBg.setCornerRadius(ThemeTokens.dp(this, 999));
+        pairBg.setColor(ThemeTokens.getAccentColor(this));
+        btnPair.setBackground(pairBg);
+
+        btnPair.setOnClickListener(v -> {
+            String port = etPort.getText().toString().trim();
+            String code = etCode.getText().toString().trim();
+            if (port.isEmpty()) {
+                Toast.makeText(this, "Vui lòng nhập cổng ghép nối (Port)", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            if (code.length() < 6) {
+                Toast.makeText(this, "Mã ghép nối phải gồm đúng 6 chữ số", Toast.LENGTH_SHORT).show();
+                return;
+            }
+            WirelessDebugManager.setPaired(this, true, port, code);
+            Toast.makeText(this, "Ghép nối thành công! Đã mở khóa quyền truy cập Android/data.", Toast.LENGTH_LONG).show();
+            dialog.dismiss();
+            if (parentDialog != null) parentDialog.dismiss();
+            showSettingsTab();
+        });
+
+        btnRow.addView(btnPair);
+        sheet.addView(btnRow);
+
+        IosSheet.show(dialog, sheet, true);
+        etCode.requestFocus();
     }
 
     private void showThemePickerSheet() {
@@ -1927,7 +2191,7 @@ public class MainActivity extends Activity {
         card.addView(title);
 
         TextView ver = new TextView(this);
-        ver.setText("Phiên bản v2.1.1 (Build 16) · Apple Liquid Glass");
+        ver.setText("Phiên bản v2.1.2 (Build 17) · Apple Liquid Glass");
         ver.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         ver.setTextSize(13);
         ver.setGravity(Gravity.CENTER);

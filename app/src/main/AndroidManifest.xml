@@ -2,8 +2,8 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools"
     package="com.velqor.app"
-    android:versionCode="16"
-    android:versionName="2.1.1">
+    android:versionCode="17"
+    android:versionName="2.1.2">
 
     <!-- Storage permissions -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
