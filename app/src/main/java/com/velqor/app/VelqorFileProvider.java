@@ -11,6 +11,14 @@ import java.io.File;
 import java.io.FileNotFoundException;
 
 public class VelqorFileProvider extends ContentProvider {
+    public static Uri getUriForFile(android.content.Context context, String authority, File file) {
+        return new Uri.Builder()
+            .scheme("content")
+            .authority(authority)
+            .path(file.getAbsolutePath())
+            .build();
+    }
+
     @Override
     public boolean onCreate() {
         return true;

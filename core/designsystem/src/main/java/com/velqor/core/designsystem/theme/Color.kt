@@ -45,3 +45,16 @@ val DarkIconDocument = Color(0xFF64D2FF)
 val DarkIconArchive = Color(0xFF5E5CE6)
 val DarkIconApk = Color(0xFF30D158)
 val DarkIconCode = Color(0xFF5E5CE6)
+
+// ==========================================
+// LIQUID GLASS DESIGN TOKENS (MILESTONE UI-REFIT-3)
+// ==========================================
+val GlassTintLight = Color(0x1AFFFFFF) // 10% white tint
+val GlassTintDark = Color(0x0FFFFFFF)  // 6% white tint
+val GlassBorderStart = Color(0x33FFFFFF) // Top-left specular rim
+val GlassBorderEnd = Color(0x08FFFFFF)   // Bottom-right shadow rim
+val DropIndicatorLight = Color(0x24007AFF) // 14% accent
+val DropIndicatorDark = Color(0x2E0A84FF)  // 18% accent
+val FloatingBarBgFallbackLight = Color(0xE0FFFFFF) // 88% alpha
+val FloatingBarBgFallbackDark = Color(0xE01C1C1E)  // 88% alpha
+
