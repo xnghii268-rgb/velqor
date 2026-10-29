@@ -12,8 +12,8 @@ public final class ThemeTokens {
     public static final int COLOR_BG_LIGHT = 0xFFF2F2F7;
     public static final int COLOR_SURFACE_DARK = 0xFF1C1C1E;
     public static final int COLOR_SURFACE_LIGHT = 0xFFFFFFFF;
-    public static final int COLOR_SURFACE_GLASS_DARK = 0xF41C1C1E;
-    public static final int COLOR_SURFACE_GLASS_LIGHT = 0xF4FFFFFF;
+    public static final int COLOR_SURFACE_GLASS_DARK = 0x80181920;
+    public static final int COLOR_SURFACE_GLASS_LIGHT = 0x80FFFFFF;
     public static final int COLOR_ACTION_GROUP_BG_DARK = 0xFF2C2C2E;
     public static final int COLOR_ACTION_GROUP_BG_LIGHT = 0xFFE5E5EA;
     public static final int COLOR_LABEL_DARK = 0xFFFFFFFF;
@@ -27,7 +27,7 @@ public final class ThemeTokens {
 
     public static final int COLOR_BG = 0xFF000000;
     public static final int COLOR_SURFACE_ELEVATED = 0xFF1C1C1E;
-    public static final int COLOR_SURFACE_GLASS = 0xF41C1C1E;
+    public static final int COLOR_SURFACE_GLASS = 0x80181920;
     public static final int COLOR_ACTION_GROUP_BG = 0xFF2C2C2E;
     public static final int COLOR_LABEL = 0xFFFFFFFF;
     public static final int COLOR_SEC_LABEL = 0x99EBEBF5;

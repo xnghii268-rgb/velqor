@@ -88,8 +88,10 @@ public class FloatingTabBar extends FrameLayout {
 
         mAmbientShadowPaint.setStyle(Paint.Style.FILL);
         mKeyShadowPaint.setStyle(Paint.Style.FILL);
+        setWillNotDraw(false);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            setElevation(0f);
             setOutlineProvider(new ViewOutlineProvider() {
                 @Override
                 public void getOutline(View view, Outline outline) {
@@ -454,6 +456,24 @@ public class FloatingTabBar extends FrameLayout {
                 iconBox.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start();
             }
         }
+    }
+
+    @Override
+    protected void onDraw(Canvas canvas) {
+        float r = getHeight() / 2f;
+        mBarRect.set(0, 0, getWidth(), getHeight());
+
+        mAmbientShadowPaint.setColor(0x18000000);
+        RectF ambientRect = new RectF(mBarRect.left, mBarRect.top + ThemeTokens.dp(getContext(), 4),
+                mBarRect.right, mBarRect.bottom + ThemeTokens.dp(getContext(), 4));
+        canvas.drawRoundRect(ambientRect, r, r, mAmbientShadowPaint);
+
+        mKeyShadowPaint.setColor(0x1F000000);
+        RectF keyRect = new RectF(mBarRect.left, mBarRect.top + ThemeTokens.dp(getContext(), 2),
+                mBarRect.right, mBarRect.bottom + ThemeTokens.dp(getContext(), 2));
+        canvas.drawRoundRect(keyRect, r, r, mKeyShadowPaint);
+
+        super.onDraw(canvas);
     }
 
     private static class LiquidCapsuleView extends View {

@@ -114,10 +114,10 @@ public class BlurBackdropView extends View {
                     canvas.drawRenderNode(node);
 
                     boolean isDark = ThemeTokens.isDarkMode(getContext());
-                    mPaint.setColor(isDark ? 0xC01C1C1E : 0xC0FFFFFF);
+                    mPaint.setColor(isDark ? 0x5516171E : 0x55FFFFFF);
                     canvas.drawRect(mRect, mPaint);
 
-                    mPaint.setColor(isDark ? 0x10FFFFFF : 0x08000000);
+                    mPaint.setColor(isDark ? 0x12FFFFFF : 0x08000000);
                     canvas.drawRect(mRect, mPaint);
 
                     blurredSuccessfully = true;
@@ -130,8 +130,12 @@ public class BlurBackdropView extends View {
         }
 
         if (!blurredSuccessfully) {
+            boolean isDark = ThemeTokens.isDarkMode(getContext());
             mPaint.setColor(ThemeTokens.getSurfaceGlassColor(getContext()));
             canvas.drawRect(mRect, mPaint);
+
+            mPaint.setColor(isDark ? 0x18FFFFFF : 0x0A000000);
+            canvas.drawRect(0, 0, getWidth(), getHeight() * 0.45f, mPaint);
         }
 
         canvas.restore();
