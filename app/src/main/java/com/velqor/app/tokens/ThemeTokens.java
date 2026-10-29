@@ -31,6 +31,10 @@ public final class ThemeTokens {
 
     // Specular Rim & Shading
     public static final int COLOR_SPECULAR_RIM = 0x33FFFFFF;
+    public static final int COLOR_RIM_START = 0x59FFFFFF;       // 35% white top-left
+    public static final int COLOR_RIM_END = 0x0DFFFFFF;         // 5% white bottom-right
+    public static final int COLOR_DROP_BG = 0x240A84FF;         // 14% accent tint
+    public static final int COLOR_DROP_BORDER = 0x40FFFFFF;     // 25% white border
     public static final int COLOR_SCRIM_BLACK = 0x73000000;     // 45% black scrim
 
     // Layout Dimensions in dp
@@ -39,13 +43,13 @@ public final class ThemeTokens {
     public static final int RADIUS_INPUT_FIELD = 12;
     public static final int RADIUS_ICON_BOX = 10;
     public static final int RADIUS_TAB_BAR = 32;
-    public static final int RADIUS_WATER_DROP = 28;
+    public static final int RADIUS_WATER_DROP = 24;
 
     public static final int SIZE_ICON_BOX = 40;
     public static final int SIZE_ICON_INSIDE = 22;
     public static final int SIZE_HEADER_BTN = 36;
     public static final int HEIGHT_TAB_BAR = 64;
-    public static final int HEIGHT_WATER_DROP = 56;
+    public static final int HEIGHT_WATER_DROP = 48;
     public static final int HEIGHT_ACTION_ROW = 52;
     public static final int ELEVATION_FLOATING_BAR = 6;
 

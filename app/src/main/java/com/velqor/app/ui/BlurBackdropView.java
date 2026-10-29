@@ -2,7 +2,7 @@ package com.velqor.app.ui;
 
 import android.content.Context;
 import android.graphics.Canvas;
-import android.graphics.Color;
+import android.graphics.LinearGradient;
 import android.graphics.Paint;
 import android.graphics.Path;
 import android.graphics.RectF;
@@ -15,7 +15,6 @@ import com.velqor.app.tokens.ThemeTokens;
 public class BlurBackdropView extends View {
     private View mTargetView;
     private float mCornerRadius;
-    private int mStrokeColor = ThemeTokens.COLOR_SPECULAR_RIM;
     private int mStrokeWidth = 2; // ~1dp
     private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
@@ -34,16 +33,15 @@ public class BlurBackdropView extends View {
     }
 
     private void init() {
-        mStrokeWidth = ThemeTokens.dp(getContext(), 1);
+        mStrokeWidth = Math.max(1, ThemeTokens.dp(getContext(), 1));
         mStrokePaint.setStyle(Paint.Style.STROKE);
         mStrokePaint.setStrokeWidth(mStrokeWidth);
-        mStrokePaint.setColor(mStrokeColor);
-
         mPaint.setStyle(Paint.Style.FILL);
     }
 
     public void setCornerRadius(float radius) {
         mCornerRadius = radius;
+        updateClipPath();
         invalidate();
     }
 
@@ -56,8 +54,25 @@ public class BlurBackdropView extends View {
     protected void onSizeChanged(int w, int h, int oldw, int oldh) {
         super.onSizeChanged(w, h, oldw, oldh);
         mRect.set(0, 0, w, h);
-        mClipPath.reset();
-        mClipPath.addRoundRect(mRect, mCornerRadius, mCornerRadius, Path.Direction.CW);
+        updateClipPath();
+
+        // 1. Specular Rim Gradient: Pure neutral white (35% top-left -> 5% bottom-right), NO red/color tint
+        if (w > 0 && h > 0) {
+            LinearGradient rimShader = new LinearGradient(
+                    0, 0, w, h,
+                    new int[]{ThemeTokens.COLOR_RIM_START, ThemeTokens.COLOR_RIM_END},
+                    new float[]{0f, 1f},
+                    Shader.TileMode.CLAMP
+            );
+            mStrokePaint.setShader(rimShader);
+        }
+    }
+
+    private void updateClipPath() {
+        if (mRect.width() > 0 && mRect.height() > 0) {
+            mClipPath.reset();
+            mClipPath.addRoundRect(mRect, mCornerRadius, mCornerRadius, Path.Direction.CW);
+        }
     }
 
     @Override
@@ -99,8 +114,12 @@ public class BlurBackdropView extends View {
 
                     canvas.drawRenderNode(node);
 
-                    // Glass tint overlay on top of blurred content (Subtle Apple frosted glass)
-                    mPaint.setColor(0x331C1C1E); // Frosted dark glass tint
+                    // 1. Base dark glass tint under blur (alpha ~0.75) to hide text behind
+                    mPaint.setColor(0xC01C1C1E);
+                    canvas.drawRect(mRect, mPaint);
+
+                    // 2. Subtle frosted glass white tint overlay (alpha ~0.06)
+                    mPaint.setColor(0x10FFFFFF);
                     canvas.drawRect(mRect, mPaint);
 
                     blurredSuccessfully = true;
@@ -112,16 +131,18 @@ public class BlurBackdropView extends View {
             }
         }
 
-        // Fallback for API < 31 or if render node fails: 96% alpha glass surface
+        // Fallback for API < 31 or if render node fails: 94-96% alpha glass surface
         if (!blurredSuccessfully) {
             mPaint.setColor(ThemeTokens.COLOR_SURFACE_GLASS);
             canvas.drawRect(mRect, mPaint);
         }
 
-        // Draw Specular Rim Stroke
-        canvas.drawRoundRect(mRect, mCornerRadius, mCornerRadius, mStrokePaint);
-
         canvas.restore();
+
+        // 3. Draw Specular Rim Stroke cleanly without clipping (0.5-1dp, white alpha 0.35 -> 0.05)
+        float halfStroke = mStrokeWidth / 2f;
+        RectF strokeRect = new RectF(halfStroke, halfStroke, getWidth() - halfStroke, getHeight() - halfStroke);
+        canvas.drawRoundRect(strokeRect, mCornerRadius - halfStroke, mCornerRadius - halfStroke, mStrokePaint);
     }
 
     private void initApi31RenderNode() {

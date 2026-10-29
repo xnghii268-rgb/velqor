@@ -19,10 +19,13 @@ import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.provider.Settings;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.view.animation.AccelerateInterpolator;
+import android.view.animation.OvershootInterpolator;
 import android.webkit.MimeTypeMap;
 import android.widget.EditText;
 import android.widget.FrameLayout;
@@ -60,6 +63,8 @@ public class MainActivity extends Activity {
     private File mCurrentDir;
     private HeaderView mHeaderView;
     private FloatingTabBar mFloatingTabBar;
+    private View mBottomGradientScrim;
+    private boolean mIsBarVisible = true;
     private LinearLayout mFileListGroup;
     private ScrollView mScrollView;
     private LinearLayout mSelectionBar;
@@ -162,6 +167,27 @@ public class MainActivity extends Activity {
         selLp.topMargin = getStatusBarHeight() + ThemeTokens.dp(this, 88);
         root.addView(mSelectionBar, selLp);
 
+        int barHeight = ThemeTokens.dp(this, ThemeTokens.HEIGHT_TAB_BAR);
+
+        // Bottom Gradient Scrim (Requirement 4): Fades to 90% background to hide poke-through content
+        int scrimHeight = barHeight + getNavBarHeight() + ThemeTokens.dp(this, 16);
+        mBottomGradientScrim = new View(this) {
+            @Override
+            public boolean onTouchEvent(MotionEvent event) {
+                return false; // Does not block touches to underlying list
+            }
+        };
+        GradientDrawable scrimBg = new GradientDrawable(
+                GradientDrawable.Orientation.TOP_BOTTOM,
+                new int[]{0x00000000, 0x4D000000, 0xE6000000}
+        );
+        mBottomGradientScrim.setBackground(scrimBg);
+        mBottomGradientScrim.setClickable(false);
+        mBottomGradientScrim.setFocusable(false);
+        FrameLayout.LayoutParams scrimLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, scrimHeight);
+        scrimLp.gravity = Gravity.BOTTOM;
+        root.addView(mBottomGradientScrim, scrimLp);
+
         // Floating Liquid Glass Tab Bar (Hardware Blur API 31+ / Thick Glass Fallback)
         mFloatingTabBar = new FloatingTabBar(this);
         mFloatingTabBar.setBackdropSource(mScrollView);
@@ -171,7 +197,6 @@ public class MainActivity extends Activity {
             switchTab(tabKey);
         });
 
-        int barHeight = ThemeTokens.dp(this, ThemeTokens.HEIGHT_TAB_BAR);
         FrameLayout.LayoutParams tabLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, barHeight);
         tabLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
         tabLp.leftMargin = ThemeTokens.dp(this, 20);
@@ -179,11 +204,25 @@ public class MainActivity extends Activity {
         tabLp.bottomMargin = getNavBarHeight() + ThemeTokens.dp(this, 12);
         root.addView(mFloatingTabBar, tabLp);
 
-        // Scroll Behavior: Header shrink & Realtime Backdrop Invalidation
+        // Scroll Behavior: Header shrink, Backdrop Invalidation & Auto-hide on fast scroll down
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             mScrollView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
                 mHeaderView.setScrolledState(scrollY > ThemeTokens.dp(this, 30));
                 mFloatingTabBar.invalidateBackdrop();
+
+                int dy = scrollY - oldScrollY;
+                int childH = (mScrollView.getChildAt(0) != null) ? mScrollView.getChildAt(0).getHeight() : 0;
+                int maxScroll = childH - mScrollView.getHeight();
+
+                if (scrollY <= ThemeTokens.dp(this, 30)) {
+                    setFloatingBarVisible(true);
+                } else if (maxScroll > 0 && scrollY >= maxScroll - ThemeTokens.dp(this, 40)) {
+                    setFloatingBarVisible(true);
+                } else if (dy > ThemeTokens.dp(this, 8)) {
+                    setFloatingBarVisible(false);
+                } else if (dy < -ThemeTokens.dp(this, 4)) {
+                    setFloatingBarVisible(true);
+                }
             });
         }
 
@@ -302,7 +341,39 @@ public class MainActivity extends Activity {
         refreshDirectory();
     }
 
+    private void setFloatingBarVisible(boolean visible) {
+        if (mIsBarVisible == visible || mFloatingTabBar == null) return;
+        mIsBarVisible = visible;
+
+        boolean reduceMotion = false;
+        try {
+            float scale = Settings.Global.getFloat(getContentResolver(), Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+            if (scale == 0f) reduceMotion = true;
+        } catch (Throwable ignored) {}
+
+        int barHeight = ThemeTokens.dp(this, ThemeTokens.HEIGHT_TAB_BAR) + getNavBarHeight() + ThemeTokens.dp(this, 24);
+        float targetY = visible ? 0f : barHeight;
+        float targetAlpha = visible ? 1.0f : 0.0f;
+
+        if (reduceMotion) {
+            mFloatingTabBar.setTranslationY(targetY);
+            mFloatingTabBar.setAlpha(targetAlpha);
+            if (mBottomGradientScrim != null) mBottomGradientScrim.setAlpha(targetAlpha);
+        } else {
+            mFloatingTabBar.animate()
+                    .translationY(targetY)
+                    .alpha(targetAlpha)
+                    .setDuration(250)
+                    .setInterpolator(visible ? new OvershootInterpolator(1.05f) : new AccelerateInterpolator())
+                    .start();
+            if (mBottomGradientScrim != null) {
+                mBottomGradientScrim.animate().alpha(targetAlpha).setDuration(250).start();
+            }
+        }
+    }
+
     private void switchTab(String tabKey) {
+        setFloatingBarVisible(true);
         if (mHeaderView != null) {
             mHeaderView.setNewItemButtonVisibility("files".equals(tabKey));
         }
