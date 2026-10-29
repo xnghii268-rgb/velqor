@@ -40,10 +40,10 @@ public class FileRowView extends LinearLayout {
 
         LinearLayout row = new LinearLayout(ctx);
         row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 8),
-                ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 8));
+        row.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 9),
+                ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 9));
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setMinimumHeight(ThemeTokens.dp(ctx, 56));
+        row.setMinimumHeight(ThemeTokens.dp(ctx, 58));
 
         int accentColor = ThemeTokens.getAccentColor(ctx);
         if (isSelected) {
@@ -60,7 +60,7 @@ public class FileRowView extends LinearLayout {
                 check.setColorFilter(Color.WHITE);
             } else {
                 checkBg.setColor(Color.TRANSPARENT);
-                checkBg.setStroke(ThemeTokens.dp(ctx, 2), ThemeTokens.getSeparatorColor(ctx));
+                checkBg.setStroke(ThemeTokens.dp(ctx, 2), ThemeTokens.getStrokeColor(ctx));
                 check.setColorFilter(Color.TRANSPARENT);
             }
             check.setBackground(checkBg);
@@ -85,7 +85,7 @@ public class FileRowView extends LinearLayout {
 
         GradientDrawable iconBoxBg = new GradientDrawable();
         iconBoxBg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_ICON_BOX));
-        iconBoxBg.setColor(isApk ? 0x15FFFFFF : ((tintColor & 0x00FFFFFF) | 0x2E000000));
+        iconBoxBg.setColor(isApk ? ThemeTokens.getStrokeColor(ctx) : ((tintColor & 0x00FFFFFF) | 0x2E000000));
         iconBox.setBackground(iconBoxBg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             iconBox.setClipToOutline(true);
@@ -131,7 +131,7 @@ public class FileRowView extends LinearLayout {
         TextView nameText = new TextView(ctx);
         nameText.setText(middleEllipsis(f.getName(), 34));
         nameText.setTextColor(ThemeTokens.getLabelColor(ctx));
-        nameText.setTextSize(17);
+        nameText.setTextSize(16);
         nameText.setTypeface(Typeface.DEFAULT);
         nameText.setSingleLine(true);
         textCol.addView(nameText);
@@ -203,14 +203,14 @@ public class FileRowView extends LinearLayout {
                 ThemeTokens.dp(ctx, 12), ThemeTokens.dp(ctx, 12));
 
         GradientDrawable cardBg = new GradientDrawable();
-        cardBg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_GROUP_LIST));
+        cardBg.setCornerRadius(ThemeTokens.dp(ctx, 18));
         int accentColor = ThemeTokens.getAccentColor(ctx);
         if (isSelected) {
             cardBg.setColor((accentColor & 0x00FFFFFF) | 0x28000000);
-            cardBg.setStroke(ThemeTokens.dp(ctx, 1), accentColor);
+            cardBg.setStroke(ThemeTokens.dp(ctx, 2), accentColor);
         } else {
             cardBg.setColor(ThemeTokens.getActionGroupBgColor(ctx));
-            cardBg.setStroke(ThemeTokens.dp(ctx, 1), 0x1AFFFFFF);
+            cardBg.setStroke(ThemeTokens.dp(ctx, 1), ThemeTokens.getStrokeColor(ctx));
         }
         card.setBackground(cardBg);
 
@@ -220,12 +220,12 @@ public class FileRowView extends LinearLayout {
         boolean isApk = nameLower.endsWith(".apk");
 
         FrameLayout iconBox = new FrameLayout(ctx);
-        int boxSize = ThemeTokens.dp(ctx, 52);
+        int boxSize = ThemeTokens.dp(ctx, 56);
         iconBox.setLayoutParams(new LinearLayout.LayoutParams(boxSize, boxSize));
 
         GradientDrawable iconBoxBg = new GradientDrawable();
-        iconBoxBg.setCornerRadius(ThemeTokens.dp(ctx, 14));
-        iconBoxBg.setColor(isApk ? 0x15FFFFFF : ((tintColor & 0x00FFFFFF) | 0x2E000000));
+        iconBoxBg.setCornerRadius(ThemeTokens.dp(ctx, 16));
+        iconBoxBg.setColor(isApk ? ThemeTokens.getStrokeColor(ctx) : ((tintColor & 0x00FFFFFF) | 0x2E000000));
         iconBox.setBackground(iconBoxBg);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             iconBox.setClipToOutline(true);
@@ -235,7 +235,7 @@ public class FileRowView extends LinearLayout {
         iv.setImageResource(iconRes);
         iv.setColorFilter(tintColor);
 
-        int insideSize = ThemeTokens.dp(ctx, isApk ? 40 : 28);
+        int insideSize = ThemeTokens.dp(ctx, isApk ? 38 : 30);
         FrameLayout.LayoutParams ivLp = new FrameLayout.LayoutParams(insideSize, insideSize);
         ivLp.gravity = Gravity.CENTER;
         iv.setLayoutParams(ivLp);
@@ -254,6 +254,7 @@ public class FileRowView extends LinearLayout {
         nameText.setText(middleEllipsis(f.getName(), 20));
         nameText.setTextColor(ThemeTokens.getLabelColor(ctx));
         nameText.setTextSize(14);
+        nameText.setTypeface(Typeface.DEFAULT_BOLD);
         nameText.setGravity(Gravity.CENTER);
         nameText.setSingleLine(true);
         LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
@@ -275,7 +276,7 @@ public class FileRowView extends LinearLayout {
         }
         subText.setText(subtitle);
         subText.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
-        subText.setTextSize(11);
+        subText.setTextSize(12);
         subText.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -308,7 +309,7 @@ public class FileRowView extends LinearLayout {
         box.setLayoutParams(new LinearLayout.LayoutParams(bSize, bSize));
         GradientDrawable boxBg = new GradientDrawable();
         boxBg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_ICON_BOX));
-        boxBg.setColor(0x1AFFFFFF);
+        boxBg.setColor(ThemeTokens.getStrokeColor(ctx));
         box.setBackground(boxBg);
         row.addView(box);
 
@@ -322,7 +323,7 @@ public class FileRowView extends LinearLayout {
         line1.setLayoutParams(l1Lp);
         GradientDrawable l1Bg = new GradientDrawable();
         l1Bg.setCornerRadius(ThemeTokens.dp(ctx, 4));
-        l1Bg.setColor(0x1AFFFFFF);
+        l1Bg.setColor(ThemeTokens.getStrokeColor(ctx));
         line1.setBackground(l1Bg);
         textCol.addView(line1);
 
@@ -332,7 +333,7 @@ public class FileRowView extends LinearLayout {
         line2.setLayoutParams(l2Lp);
         GradientDrawable l2Bg = new GradientDrawable();
         l2Bg.setCornerRadius(ThemeTokens.dp(ctx, 3));
-        l2Bg.setColor(0x10FFFFFF);
+        l2Bg.setColor(ThemeTokens.getStrokeColor(ctx));
         line2.setBackground(l2Bg);
         textCol.addView(line2);
 

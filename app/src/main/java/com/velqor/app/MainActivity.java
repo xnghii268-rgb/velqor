@@ -121,7 +121,7 @@ public class MainActivity extends Activity {
         mDirectoryWatcher = new DirectoryWatcher(this::onDirectoryContentsChanged);
 
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(ThemeTokens.COLOR_BG);
+        root.setBackgroundColor(ThemeTokens.getBackgroundColor(this));
 
         mScrollView = new IosPullScrollView(this);
         mScrollView.setFillViewport(true);
@@ -207,9 +207,12 @@ public class MainActivity extends Activity {
                 return false; 
             }
         };
+        int scrimColor = ThemeTokens.getScrimColor(this);
+        int midScrim = (scrimColor & 0x00FFFFFF) | 0x4D000000;
+        int endScrim = (scrimColor & 0x00FFFFFF) | 0xE6000000;
         GradientDrawable scrimBg = new GradientDrawable(
                 GradientDrawable.Orientation.TOP_BOTTOM,
-                new int[]{0x00000000, 0x4D000000, 0xE6000000}
+                new int[]{0x00000000, midScrim, endScrim}
         );
         mBottomGradientScrim.setBackground(scrimBg);
         mBottomGradientScrim.setClickable(false);
@@ -317,25 +320,26 @@ public class MainActivity extends Activity {
 
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(ThemeTokens.dp(this, 14));
-        bg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
+        bg.setColor(ThemeTokens.getActionGroupBgColor(this));
+        bg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
         bar.setBackground(bg);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setVisibility(View.GONE);
 
         mSelectionCountText = new TextView(this);
         mSelectionCountText.setText("Đã chọn 0 mục");
-        mSelectionCountText.setTextColor(ThemeTokens.COLOR_LABEL);
+        mSelectionCountText.setTextColor(ThemeTokens.getLabelColor(this));
         mSelectionCountText.setTextSize(15);
         mSelectionCountText.setTypeface(Typeface.DEFAULT_BOLD);
         LinearLayout.LayoutParams countLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         bar.addView(mSelectionCountText, countLp);
 
         
-        ImageView btnMore = createBarIcon(R.drawable.ic_more_dots, ThemeTokens.COLOR_ACCENT, v -> showBatchOptionsSheet());
+        ImageView btnMore = createBarIcon(R.drawable.ic_more_dots, ThemeTokens.getAccentColor(this), v -> showBatchOptionsSheet());
         bar.addView(btnMore);
 
         
-        ImageView btnZip = createBarIcon(R.drawable.ic_file_archive, ThemeTokens.COLOR_ACCENT, v -> compressSelected());
+        ImageView btnZip = createBarIcon(R.drawable.ic_file_archive, ThemeTokens.getAccentColor(this), v -> compressSelected());
         bar.addView(btnZip);
 
         
@@ -345,7 +349,7 @@ public class MainActivity extends Activity {
         
         TextView btnDone = new TextView(this);
         btnDone.setText("Xong");
-        btnDone.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnDone.setTextColor(ThemeTokens.getAccentColor(this));
         btnDone.setTextSize(16);
         btnDone.setTypeface(Typeface.DEFAULT_BOLD);
         btnDone.setPadding(ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 4), ThemeTokens.dp(this, 4), ThemeTokens.dp(this, 4));
@@ -568,7 +572,8 @@ public class MainActivity extends Activity {
         } else {
             GradientDrawable groupBg = new GradientDrawable();
             groupBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_GROUP_LIST));
-            groupBg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
+            groupBg.setColor(ThemeTokens.getActionGroupBgColor(this));
+            groupBg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
             mFileListGroup.setBackground(groupBg);
 
             for (int i = 0; i < files.size(); i++) {
@@ -592,14 +597,14 @@ public class MainActivity extends Activity {
 
         ImageView icon = new ImageView(this);
         icon.setImageResource(R.drawable.ic_folder);
-        icon.setColorFilter(ThemeTokens.COLOR_SEC_LABEL);
+        icon.setColorFilter(ThemeTokens.getSecondaryLabelColor(this));
         icon.setAlpha(0.35f);
         icon.setLayoutParams(new LinearLayout.LayoutParams(ThemeTokens.dp(this, 64), ThemeTokens.dp(this, 64)));
         emptyLayout.addView(icon);
 
         TextView titleView = new TextView(this);
         titleView.setText(title);
-        titleView.setTextColor(ThemeTokens.COLOR_LABEL);
+        titleView.setTextColor(ThemeTokens.getLabelColor(this));
         titleView.setTextSize(17);
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         titleView.setGravity(Gravity.CENTER);
@@ -610,7 +615,7 @@ public class MainActivity extends Activity {
 
         TextView subView = new TextView(this);
         subView.setText(subtitle);
-        subView.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        subView.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         subView.setTextSize(14);
         subView.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -674,7 +679,7 @@ public class MainActivity extends Activity {
 
         TextView nameText = new TextView(this);
         nameText.setText(FileRowView.middleEllipsis(f.getName(), 32));
-        nameText.setTextColor(ThemeTokens.COLOR_LABEL);
+        nameText.setTextColor(ThemeTokens.getLabelColor(this));
         nameText.setTextSize(17);
         nameText.setTypeface(Typeface.DEFAULT_BOLD);
         nameText.setSingleLine(true);
@@ -684,7 +689,7 @@ public class MainActivity extends Activity {
         String meta = f.isDirectory() ? ("Thư mục · " + FileRowView.formatItemDate(f.lastModified()))
                                      : (FileRowView.formatSize(f.length()) + " · " + FileRowView.formatItemDate(f.lastModified()));
         metaText.setText(meta);
-        metaText.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        metaText.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         metaText.setTextSize(13);
         textCol.addView(metaText);
 
@@ -693,7 +698,7 @@ public class MainActivity extends Activity {
 
         
         View sep = new View(this);
-        sep.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+        sep.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(this));
         sep.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(this, 1) / 2)));
         sheet.addView(sep);
 
@@ -836,7 +841,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText(f.isDirectory() ? "Chi tiết thư mục" : "Chi tiết tệp tin");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
@@ -880,7 +885,7 @@ public class MainActivity extends Activity {
 
         TextView btnClose = new TextView(this);
         btnClose.setText("Đóng");
-        btnClose.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnClose.setTextColor(ThemeTokens.getAccentColor(this));
         btnClose.setTextSize(17);
         btnClose.setTypeface(Typeface.DEFAULT_BOLD);
         btnClose.setGravity(Gravity.CENTER);
@@ -898,13 +903,13 @@ public class MainActivity extends Activity {
 
         TextView k = new TextView(this);
         k.setText(key);
-        k.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        k.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         k.setTextSize(12);
         row.addView(k);
 
         TextView v = new TextView(this);
         v.setText(val);
-        v.setTextColor(ThemeTokens.COLOR_LABEL);
+        v.setTextColor(ThemeTokens.getLabelColor(this));
         v.setTextSize(14);
         row.addView(v);
 
@@ -919,7 +924,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Sắp xếp theo");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
@@ -940,7 +945,7 @@ public class MainActivity extends Activity {
             TextView tv = new TextView(this);
             tv.setText(options[i]);
             tv.setTextSize(17);
-            tv.setTextColor(isChosen ? ThemeTokens.COLOR_ACCENT : ThemeTokens.COLOR_LABEL);
+            tv.setTextColor(isChosen ? ThemeTokens.getAccentColor(this) : ThemeTokens.getLabelColor(this));
             tv.setTypeface(isChosen ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
             row.addView(tv, tlp);
@@ -948,7 +953,7 @@ public class MainActivity extends Activity {
             if (isChosen) {
                 ImageView check = new ImageView(this);
                 check.setImageResource(R.drawable.ic_check);
-                check.setColorFilter(ThemeTokens.COLOR_ACCENT);
+                check.setColorFilter(ThemeTokens.getAccentColor(this));
                 check.setLayoutParams(new LinearLayout.LayoutParams(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20)));
                 row.addView(check);
             }
@@ -962,7 +967,7 @@ public class MainActivity extends Activity {
 
             if (!isLast) {
                 View div = new View(this);
-                div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+                div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(this));
                 LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(this, 1) / 2));
                 divLp.leftMargin = ThemeTokens.dp(this, 16);
                 div.setLayoutParams(divLp);
@@ -974,7 +979,7 @@ public class MainActivity extends Activity {
         LinearLayout cancelCard = IosSheet.createActionGroup(this);
         TextView btnCancel = new TextView(this);
         btnCancel.setText("Hủy");
-        btnCancel.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnCancel.setTextColor(ThemeTokens.getAccentColor(this));
         btnCancel.setTextSize(17);
         btnCancel.setTypeface(Typeface.DEFAULT_BOLD);
         btnCancel.setGravity(Gravity.CENTER);
@@ -993,21 +998,22 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Tìm kiếm trong thư mục");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
         EditText input = new EditText(this);
         input.setHint("Nhập tên tệp hoặc thư mục");
-        input.setHintTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        input.setTextColor(ThemeTokens.COLOR_LABEL);
+        input.setHintTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        input.setTextColor(ThemeTokens.getLabelColor(this));
         input.setTextSize(16);
         input.setPadding(ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 12),
                 ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 12));
 
         GradientDrawable inputBg = new GradientDrawable();
         inputBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_INPUT_FIELD));
-        inputBg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
+        inputBg.setColor(ThemeTokens.getActionGroupBgColor(this));
+        inputBg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
         input.setBackground(inputBg);
 
         LinearLayout.LayoutParams inLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1039,9 +1045,10 @@ public class MainActivity extends Activity {
             GradientDrawable chipBg = new GradientDrawable();
             chipBg.setCornerRadius(ThemeTokens.dp(this, 999));
             boolean isSel = filter.equals(selectedFilter[0]);
-            chipBg.setColor(isSel ? ThemeTokens.COLOR_ACCENT : ThemeTokens.COLOR_ACTION_GROUP_BG);
+            chipBg.setColor(isSel ? ThemeTokens.getAccentColor(this) : ThemeTokens.getActionGroupBgColor(this));
+            chipBg.setStroke(ThemeTokens.dp(this, 1), isSel ? ThemeTokens.getAccentColor(this) : ThemeTokens.getStrokeColor(this));
             chip.setBackground(chipBg);
-            chip.setTextColor(isSel ? Color.WHITE : ThemeTokens.COLOR_SEC_LABEL);
+            chip.setTextColor(isSel ? Color.WHITE : ThemeTokens.getSecondaryLabelColor(this));
 
             LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
                     ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1054,8 +1061,9 @@ public class MainActivity extends Activity {
                     TextView cv = chipViews.get(i);
                     boolean s = filters[i].equals(selectedFilter[0]);
                     GradientDrawable bg = (GradientDrawable) cv.getBackground();
-                    bg.setColor(s ? ThemeTokens.COLOR_ACCENT : ThemeTokens.COLOR_ACTION_GROUP_BG);
-                    cv.setTextColor(s ? Color.WHITE : ThemeTokens.COLOR_SEC_LABEL);
+                    bg.setColor(s ? ThemeTokens.getAccentColor(this) : ThemeTokens.getActionGroupBgColor(this));
+                    bg.setStroke(ThemeTokens.dp(this, 1), s ? ThemeTokens.getAccentColor(this) : ThemeTokens.getStrokeColor(this));
+                    cv.setTextColor(s ? Color.WHITE : ThemeTokens.getSecondaryLabelColor(this));
                 }
             });
 
@@ -1072,7 +1080,7 @@ public class MainActivity extends Activity {
 
         TextView btnCancel = new TextView(this);
         btnCancel.setText("Hủy");
-        btnCancel.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        btnCancel.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         btnCancel.setTextSize(16);
         btnCancel.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10),
                 ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10));
@@ -1088,7 +1096,7 @@ public class MainActivity extends Activity {
                 ThemeTokens.dp(this, 24), ThemeTokens.dp(this, 10));
         GradientDrawable sBg = new GradientDrawable();
         sBg.setCornerRadius(ThemeTokens.dp(this, 999));
-        sBg.setColor(ThemeTokens.COLOR_ACCENT);
+        sBg.setColor(ThemeTokens.getAccentColor(this));
         btnSearch.setBackground(sBg);
         btnSearch.setOnClickListener(v -> {
             String query = input.getText().toString().trim();
@@ -1144,7 +1152,8 @@ public class MainActivity extends Activity {
 
         GradientDrawable groupBg = new GradientDrawable();
         groupBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_GROUP_LIST));
-        groupBg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
+        groupBg.setColor(ThemeTokens.getActionGroupBgColor(this));
+        groupBg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
         mFileListGroup.setBackground(groupBg);
 
         for (int i = 0; i < filtered.size(); i++) {
@@ -1183,7 +1192,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Tùy chọn VELQOR");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
@@ -1253,7 +1262,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Đã chọn " + mSelectedPaths.size() + " mục");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
@@ -1500,27 +1509,59 @@ public class MainActivity extends Activity {
         mFileListGroup.removeAllViews();
         mFileListGroup.setBackground(null);
 
-        LinearLayout headerCard = IosSheet.createActionGroup(this);
-        headerCard.setPadding(ThemeTokens.dp(this, 18), ThemeTokens.dp(this, 16),
-                ThemeTokens.dp(this, 18), ThemeTokens.dp(this, 16));
+        LinearLayout heroCard = IosSheet.createActionGroup(this);
+        heroCard.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
+        heroCard.setOrientation(LinearLayout.VERTICAL);
+
+        LinearLayout heroRow = new LinearLayout(this);
+        heroRow.setOrientation(LinearLayout.HORIZONTAL);
+        heroRow.setGravity(Gravity.CENTER_VERTICAL);
+
+        FrameLayout iconBox = new FrameLayout(this);
+        int boxSize = ThemeTokens.dp(this, 44);
+        iconBox.setLayoutParams(new LinearLayout.LayoutParams(boxSize, boxSize));
+        GradientDrawable iconBoxBg = new GradientDrawable();
+        iconBoxBg.setCornerRadius(ThemeTokens.dp(this, 12));
+        int accent = ThemeTokens.getAccentColor(this);
+        iconBoxBg.setColor((accent & 0x00FFFFFF) | 0x2E000000);
+        iconBox.setBackground(iconBoxBg);
+
+        ImageView heroIcon = new ImageView(this);
+        heroIcon.setImageResource(R.drawable.ic_file_archive);
+        heroIcon.setColorFilter(accent);
+        int insideSize = ThemeTokens.dp(this, 24);
+        FrameLayout.LayoutParams ivLp = new FrameLayout.LayoutParams(insideSize, insideSize);
+        ivLp.gravity = Gravity.CENTER;
+        heroIcon.setLayoutParams(ivLp);
+        iconBox.addView(heroIcon);
+        heroRow.addView(iconBox);
+
+        LinearLayout heroTextCol = new LinearLayout(this);
+        heroTextCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams tclp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        tclp.leftMargin = ThemeTokens.dp(this, 12);
 
         TextView title = new TextView(this);
-        title.setText("Trình quản lý nén VELQOR");
-        title.setTextSize(18);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setText("Kho lưu trữ & Tệp nén");
+        title.setTextSize(17);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        headerCard.addView(title);
+        heroTextCol.addView(title);
 
         TextView info = new TextView(this);
         info.setText("Duyệt nội dung tệp nén ZIP, TAR, GZ trực tiếp không cần giải nén.");
-        info.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        info.setTextSize(13);
+        info.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        info.setTextSize(12);
         LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        subLp.topMargin = ThemeTokens.dp(this, 4);
+        subLp.topMargin = ThemeTokens.dp(this, 2);
         info.setLayoutParams(subLp);
-        headerCard.addView(info);
-        mFileListGroup.addView(headerCard);
+        heroTextCol.addView(info);
+
+        heroRow.addView(heroTextCol, tclp);
+        heroCard.addView(heroRow);
+        mFileListGroup.addView(heroCard);
 
         LinearLayout listCard = IosSheet.createActionGroup(this);
         LinearLayout.LayoutParams lclp = new LinearLayout.LayoutParams(
@@ -1530,7 +1571,7 @@ public class MainActivity extends Activity {
 
         TextView loading = new TextView(this);
         loading.setText("Đang tìm tệp nén trên thiết bị...");
-        loading.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        loading.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         loading.setTextSize(14);
         loading.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
                 ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
@@ -1557,7 +1598,7 @@ public class MainActivity extends Activity {
                 if (distinctArchives.isEmpty()) {
                     TextView emptyTv = new TextView(this);
                     emptyTv.setText("Chưa tìm thấy tệp nén nào trong máy.");
-                    emptyTv.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+                    emptyTv.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
                     emptyTv.setTextSize(14);
                     emptyTv.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
                             ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
@@ -1595,13 +1636,13 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText(archiveFile.getName());
         title.setTextSize(18);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
         TextView sub = new TextView(this);
         sub.setText("Kích thước: " + FileRowView.formatSize(archiveFile.length()) + " · Đang nạp danh mục...");
-        sub.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         sub.setTextSize(12);
         sheet.addView(sub);
 
@@ -1622,7 +1663,7 @@ public class MainActivity extends Activity {
                 ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(ThemeTokens.dp(this, 999));
-        bg.setColor(ThemeTokens.COLOR_ACCENT);
+        bg.setColor(ThemeTokens.getAccentColor(this));
         btnExtractAll.setBackground(bg);
         btnExtractAll.setOnClickListener(v -> {
             dialog.dismiss();
@@ -1790,7 +1831,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Chế độ giao diện");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
@@ -1814,7 +1855,7 @@ public class MainActivity extends Activity {
             TextView tv = new TextView(this);
             tv.setText(labels[i]);
             tv.setTextSize(16);
-            tv.setTextColor(isChosen ? ThemeTokens.getAccentColor(this) : ThemeTokens.COLOR_LABEL);
+            tv.setTextColor(isChosen ? ThemeTokens.getAccentColor(this) : ThemeTokens.getLabelColor(this));
             tv.setTypeface(isChosen ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             row.addView(tv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -1835,7 +1876,7 @@ public class MainActivity extends Activity {
             card.addView(row);
             if (!isLast) {
                 View div = new View(this);
-                div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+                div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(this));
                 int divH = Math.max(1, ThemeTokens.dp(this, 1) / 2);
                 LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, divH);
                 dlp.leftMargin = ThemeTokens.dp(this, 16);
@@ -1876,7 +1917,7 @@ public class MainActivity extends Activity {
 
         TextView title = new TextView(this);
         title.setText("VELQOR PRO");
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTextSize(20);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setGravity(Gravity.CENTER);
@@ -1887,7 +1928,7 @@ public class MainActivity extends Activity {
 
         TextView ver = new TextView(this);
         ver.setText("Phiên bản v2.1.1 (Build 16) · Apple Liquid Glass");
-        ver.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        ver.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         ver.setTextSize(13);
         ver.setGravity(Gravity.CENTER);
         LinearLayout.LayoutParams vlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -1896,7 +1937,7 @@ public class MainActivity extends Activity {
         card.addView(ver);
 
         View div = new View(this);
-        div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+        div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(this));
         LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(this, 1) / 2));
         divLp.topMargin = ThemeTokens.dp(this, 16);
         divLp.bottomMargin = ThemeTokens.dp(this, 16);
@@ -1905,7 +1946,7 @@ public class MainActivity extends Activity {
 
         TextView info = new TextView(this);
         info.setText("• Thiết kế: Apple iOS Cupertino Native Liquid Glass\n• Hiệu năng: Tự động cập nhật ngầm 3 giây & Kéo làm mới mượt mà\n• Trình duyệt tệp nén: Đọc trực tiếp ZIP không cần giải nén\n• Công nghệ: Java 17 + Android View AOSP Native (0 thư viện ngoài)\n• Bản quyền: Google DeepMind Pair Programming");
-        info.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        info.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         info.setTextSize(13);
         info.setLineSpacing(ThemeTokens.dp(this, 4), 1f);
         card.addView(info);
@@ -1914,7 +1955,7 @@ public class MainActivity extends Activity {
         LinearLayout cancelCard = IosSheet.createActionGroup(this);
         TextView btnClose = new TextView(this);
         btnClose.setText("Đóng");
-        btnClose.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnClose.setTextColor(ThemeTokens.getAccentColor(this));
         btnClose.setTextSize(17);
         btnClose.setTypeface(Typeface.DEFAULT_BOLD);
         btnClose.setGravity(Gravity.CENTER);
@@ -1933,7 +1974,7 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Chọn màu nhấn Apple");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
@@ -1982,7 +2023,7 @@ public class MainActivity extends Activity {
             TextView tv = new TextView(this);
             tv.setText(names[i]);
             tv.setTextSize(16);
-            tv.setTextColor(isChosen ? c : ThemeTokens.COLOR_LABEL);
+            tv.setTextColor(isChosen ? c : ThemeTokens.getLabelColor(this));
             tv.setTypeface(isChosen ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
             row.addView(tv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
@@ -2003,7 +2044,7 @@ public class MainActivity extends Activity {
             card.addView(row);
             if (!isLast) {
                 View div = new View(this);
-                div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+                div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(this));
                 card.addView(div, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 1)));
             }
         }
@@ -2018,14 +2059,14 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Thùng rác VELQOR");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
         List<TrashManager.TrashItem> items = TrashManager.listTrashItems(this);
         TextView sub = new TextView(this);
         sub.setText("Tổng cộng " + items.size() + " mục · " + FileRowView.formatSize(TrashManager.getTrashSize(this)));
-        sub.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         sub.setTextSize(13);
         sheet.addView(sub);
 
@@ -2071,7 +2112,7 @@ public class MainActivity extends Activity {
         if (items.isEmpty()) {
             TextView empty = new TextView(this);
             empty.setText("Thùng rác đang rỗng.");
-            empty.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+            empty.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
             empty.setTextSize(14);
             empty.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
                     ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
@@ -2104,13 +2145,13 @@ public class MainActivity extends Activity {
         TextView title = new TextView(this);
         title.setText("Dashboard dung lượng");
         title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
         TextView sub = new TextView(this);
         sub.setText("Đang phân tích cấu trúc bộ nhớ...");
-        sub.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         sub.setTextSize(13);
         sheet.addView(sub);
 

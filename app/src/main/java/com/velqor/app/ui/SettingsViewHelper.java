@@ -34,7 +34,7 @@ public final class SettingsViewHelper {
         int endColor = ThemeTokens.isDarkMode(ctx) ? 0xFF1C1C1E : 0xFFF2F2F7;
         bg.setColors(new int[]{startColor, endColor});
         bg.setOrientation(GradientDrawable.Orientation.TL_BR);
-        bg.setStroke(Math.max(1, ThemeTokens.dp(ctx, 1) / 2), 0x2AFFFFFF);
+        bg.setStroke(Math.max(1, ThemeTokens.dp(ctx, 1) / 2), ThemeTokens.getStrokeColor(ctx));
         card.setBackground(bg);
 
         FrameLayout logoBox = new FrameLayout(ctx);
@@ -111,7 +111,7 @@ public final class SettingsViewHelper {
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(ThemeTokens.dp(ctx, 20));
         bg.setColor(ThemeTokens.getActionGroupBgColor(ctx));
-        bg.setStroke(Math.max(1, ThemeTokens.dp(ctx, 1) / 2), 0x1AFFFFFF);
+        bg.setStroke(Math.max(1, ThemeTokens.dp(ctx, 1) / 2), ThemeTokens.getStrokeColor(ctx));
         group.setBackground(bg);
         return group;
     }

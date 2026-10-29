@@ -126,4 +126,16 @@ public final class ThemeTokens {
     public static int getSeparatorInsetColor(Context context) {
         return isDarkMode(context) ? COLOR_SEPARATOR_INSET_DARK : COLOR_SEPARATOR_INSET_LIGHT;
     }
+
+    public static int getSurfaceGlassColor(Context context) {
+        return isDarkMode(context) ? COLOR_SURFACE_GLASS_DARK : COLOR_SURFACE_GLASS_LIGHT;
+    }
+
+    public static int getStrokeColor(Context context) {
+        return isDarkMode(context) ? 0x22FFFFFF : 0x14000000;
+    }
+
+    public static int getScrimColor(Context context) {
+        return isDarkMode(context) ? 0xE6000000 : 0xE6F2F2F7;
+    }
 }

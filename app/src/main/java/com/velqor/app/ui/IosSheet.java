@@ -45,7 +45,7 @@ public final class IosSheet {
     public static LinearLayout createSheetRoot(Context ctx, Dialog dialog) {
         int screenWidth = ctx.getResources().getDisplayMetrics().widthPixels;
         int screenHeight = ctx.getResources().getDisplayMetrics().heightPixels;
-        final int maxSheetHeight = (int) (screenHeight * 0.75f); 
+        final int maxSheetHeight = (int) (screenHeight * 0.75f);
 
         LinearLayout sheet = new LinearLayout(ctx) {
             @Override
@@ -69,17 +69,17 @@ public final class IosSheet {
                 ThemeTokens.dp(ctx, ThemeTokens.RADIUS_SHEET_TOP), ThemeTokens.dp(ctx, ThemeTokens.RADIUS_SHEET_TOP),
                 ThemeTokens.dp(ctx, ThemeTokens.RADIUS_SHEET_TOP), ThemeTokens.dp(ctx, ThemeTokens.RADIUS_SHEET_TOP),
                 0, 0, 0, 0});
-        bg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
+        bg.setColor(ThemeTokens.getSurfaceColor(ctx));
+        bg.setStroke(ThemeTokens.dp(ctx, 1), ThemeTokens.getStrokeColor(ctx));
         sheet.setBackground(bg);
 
-        
         View grabber = new View(ctx);
         int grabberW = ThemeTokens.dp(ctx, 36);
         int grabberH = ThemeTokens.dp(ctx, 5);
         grabber.setLayoutParams(new LinearLayout.LayoutParams(grabberW, grabberH));
         GradientDrawable grabberBg = new GradientDrawable();
         grabberBg.setCornerRadius(ThemeTokens.dp(ctx, 3));
-        grabberBg.setColor(ThemeTokens.COLOR_SEPARATOR);
+        grabberBg.setColor(ThemeTokens.getSeparatorColor(ctx));
         grabber.setBackground(grabberBg);
         LinearLayout.LayoutParams grabberLp = (LinearLayout.LayoutParams) grabber.getLayoutParams();
         grabberLp.gravity = Gravity.CENTER_HORIZONTAL;
@@ -97,7 +97,7 @@ public final class IosSheet {
         Context ctx = sheet.getContext();
         FrameLayout root = new FrameLayout(ctx);
         root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        root.setBackgroundColor(ThemeTokens.COLOR_SCRIM_BLACK);
+        root.setBackgroundColor(ThemeTokens.getScrimColor(ctx));
         root.setOnClickListener(v -> dialog.dismiss());
 
         FrameLayout.LayoutParams sheetLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -126,7 +126,8 @@ public final class IosSheet {
 
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_GROUP_LIST));
-        bg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
+        bg.setColor(ThemeTokens.getActionGroupBgColor(ctx));
+        bg.setStroke(ThemeTokens.dp(ctx, 1), ThemeTokens.getStrokeColor(ctx));
         group.setBackground(bg);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -149,7 +150,7 @@ public final class IosSheet {
 
         ImageView iv = new ImageView(ctx);
         iv.setImageResource(iconResId);
-        iv.setColorFilter(isDanger ? ThemeTokens.COLOR_DANGER : ThemeTokens.COLOR_LABEL);
+        iv.setColorFilter(isDanger ? ThemeTokens.COLOR_DANGER : ThemeTokens.getLabelColor(ctx));
         int iconSize = ThemeTokens.dp(ctx, ThemeTokens.SIZE_ICON_INSIDE);
         iv.setLayoutParams(new LinearLayout.LayoutParams(iconSize, iconSize));
         row.addView(iv);
@@ -157,7 +158,7 @@ public final class IosSheet {
         TextView tv = new TextView(ctx);
         tv.setText(title);
         tv.setTextSize(17);
-        tv.setTextColor(isDanger ? ThemeTokens.COLOR_DANGER : ThemeTokens.COLOR_LABEL);
+        tv.setTextColor(isDanger ? ThemeTokens.COLOR_DANGER : ThemeTokens.getLabelColor(ctx));
         tv.setTypeface(isDanger ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         tlp.leftMargin = ThemeTokens.dp(ctx, 14);
@@ -168,7 +169,7 @@ public final class IosSheet {
 
         if (hasDivider) {
             View div = new View(ctx);
-            div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+            div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(ctx));
             int divH = Math.max(1, ThemeTokens.dp(ctx, 1) / 2);
             LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, divH);
             divLp.leftMargin = ThemeTokens.dp(ctx, 52);
@@ -190,14 +191,14 @@ public final class IosSheet {
 
         TextView title = new TextView(ctx);
         title.setText("Bạn có chắc chắn muốn xóa?");
-        title.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        title.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
         title.setTextSize(13);
         title.setGravity(Gravity.CENTER);
         card.addView(title);
 
         TextView fname = new TextView(ctx);
         fname.setText("'" + f.getName() + "'");
-        fname.setTextColor(ThemeTokens.COLOR_LABEL);
+        fname.setTextColor(ThemeTokens.getLabelColor(ctx));
         fname.setTextSize(15);
         fname.setTypeface(Typeface.DEFAULT_BOLD);
         fname.setGravity(Gravity.CENTER);
@@ -205,7 +206,7 @@ public final class IosSheet {
         card.addView(fname);
 
         View div = new View(ctx);
-        div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+        div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(ctx));
         div.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(ctx, 1) / 2)));
         card.addView(div);
 
@@ -223,11 +224,10 @@ public final class IosSheet {
         card.addView(btnDelete);
         sheet.addView(card);
 
-        
         LinearLayout cancelCard = createActionGroup(ctx);
         TextView btnCancel = new TextView(ctx);
         btnCancel.setText("Hủy");
-        btnCancel.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnCancel.setTextColor(ThemeTokens.getAccentColor(ctx));
         btnCancel.setTextSize(17);
         btnCancel.setTypeface(Typeface.DEFAULT_BOLD);
         btnCancel.setGravity(Gravity.CENTER);
@@ -250,7 +250,7 @@ public final class IosSheet {
 
         TextView title = new TextView(ctx);
         title.setText(titleStr);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextColor(ThemeTokens.getLabelColor(ctx));
         title.setTextSize(16);
         title.setTypeface(Typeface.DEFAULT_BOLD);
         title.setGravity(Gravity.CENTER);
@@ -258,20 +258,20 @@ public final class IosSheet {
 
         TextView msg = new TextView(ctx);
         msg.setText(messageStr);
-        msg.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        msg.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
         msg.setTextSize(13);
         msg.setGravity(Gravity.CENTER);
         msg.setPadding(0, ThemeTokens.dp(ctx, 6), 0, ThemeTokens.dp(ctx, 12));
         card.addView(msg);
 
         View div = new View(ctx);
-        div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+        div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(ctx));
         div.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(ctx, 1) / 2)));
         card.addView(div);
 
         TextView btnAction = new TextView(ctx);
         btnAction.setText(confirmBtnText);
-        btnAction.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnAction.setTextColor(ThemeTokens.getAccentColor(ctx));
         btnAction.setTextSize(17);
         btnAction.setTypeface(Typeface.DEFAULT_BOLD);
         btnAction.setGravity(Gravity.CENTER);
@@ -286,7 +286,7 @@ public final class IosSheet {
         LinearLayout cancelCard = createActionGroup(ctx);
         TextView btnCancel = new TextView(ctx);
         btnCancel.setText("Hủy");
-        btnCancel.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        btnCancel.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
         btnCancel.setTextSize(17);
         btnCancel.setGravity(Gravity.CENTER);
         btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(ctx, 52)));
@@ -305,14 +305,14 @@ public final class IosSheet {
         TextView titleView = new TextView(ctx);
         titleView.setText(title);
         titleView.setTextSize(20);
-        titleView.setTextColor(ThemeTokens.COLOR_LABEL);
+        titleView.setTextColor(ThemeTokens.getLabelColor(ctx));
         titleView.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(titleView);
 
         if (subtitle != null && !subtitle.isEmpty()) {
             TextView subView = new TextView(ctx);
             subView.setText(subtitle);
-            subView.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+            subView.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
             subView.setTextSize(13);
             sheet.addView(subView);
         }
@@ -320,14 +320,16 @@ public final class IosSheet {
         EditText input = new EditText(ctx);
         input.setText(initialText);
         if (initialText != null) input.setSelection(initialText.length());
-        input.setTextColor(ThemeTokens.COLOR_LABEL);
+        input.setTextColor(ThemeTokens.getLabelColor(ctx));
+        input.setHintTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
         input.setSingleLine(true);
         input.setPadding(ThemeTokens.dp(ctx, 14), ThemeTokens.dp(ctx, 12),
                 ThemeTokens.dp(ctx, 14), ThemeTokens.dp(ctx, 12));
 
         GradientDrawable inputBg = new GradientDrawable();
         inputBg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_INPUT_FIELD));
-        inputBg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
+        inputBg.setColor(ThemeTokens.getActionGroupBgColor(ctx));
+        inputBg.setStroke(ThemeTokens.dp(ctx, 1), ThemeTokens.getStrokeColor(ctx));
         input.setBackground(inputBg);
 
         LinearLayout.LayoutParams inLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -351,7 +353,7 @@ public final class IosSheet {
 
         TextView btnCancel = new TextView(ctx);
         btnCancel.setText("Hủy");
-        btnCancel.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        btnCancel.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
         btnCancel.setTextSize(16);
         btnCancel.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 10),
                 ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 10));
@@ -368,7 +370,7 @@ public final class IosSheet {
 
         GradientDrawable doneBg = new GradientDrawable();
         doneBg.setCornerRadius(ThemeTokens.dp(ctx, 999));
-        doneBg.setColor(ThemeTokens.COLOR_ACCENT);
+        doneBg.setColor(ThemeTokens.getAccentColor(ctx));
         btnDone.setBackground(doneBg);
 
         btnDone.setOnClickListener(v -> {

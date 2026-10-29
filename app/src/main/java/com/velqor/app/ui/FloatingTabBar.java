@@ -161,13 +161,13 @@ public class FloatingTabBar extends FrameLayout {
 
         ImageView ivOutline = new ImageView(getContext());
         ivOutline.setImageResource(outlineIconRes);
-        ivOutline.setColorFilter(ThemeTokens.COLOR_SEC_LABEL);
+        ivOutline.setColorFilter(ThemeTokens.getSecondaryLabelColor(getContext()));
         ivOutline.setAlpha(isSelected ? 0.0f : 1.0f);
         iconBox.addView(ivOutline, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         ImageView ivFilled = new ImageView(getContext());
         ivFilled.setImageResource(filledIconRes);
-        ivFilled.setColorFilter(ThemeTokens.COLOR_ACCENT);
+        ivFilled.setColorFilter(ThemeTokens.getAccentColor(getContext()));
         ivFilled.setAlpha(isSelected ? 1.0f : 0.0f);
         iconBox.addView(ivFilled, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
@@ -286,11 +286,14 @@ public class FloatingTabBar extends FrameLayout {
         public WaterDropView(Context context) {
             super(context);
             mPaint.setStyle(Paint.Style.FILL);
-            mPaint.setColor(ThemeTokens.COLOR_DROP_BG);
+            int accent = ThemeTokens.getAccentColor(context);
+            int dropAlpha = ThemeTokens.isDarkMode(context) ? 0x24000000 : 0x1A000000;
+            mPaint.setColor((accent & 0x00FFFFFF) | dropAlpha);
 
             mStrokePaint.setStyle(Paint.Style.STROKE);
             mStrokePaint.setStrokeWidth(Math.max(1, ThemeTokens.dp(context, 1) / 2));
-            mStrokePaint.setColor(ThemeTokens.COLOR_DROP_BORDER);
+            boolean isDark = ThemeTokens.isDarkMode(context);
+            mStrokePaint.setColor(isDark ? ThemeTokens.COLOR_DROP_BORDER : 0x2E000000);
 
             mHighlightPaint.setStyle(Paint.Style.FILL);
         }

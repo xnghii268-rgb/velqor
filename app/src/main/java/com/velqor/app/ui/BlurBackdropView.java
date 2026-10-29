@@ -58,9 +58,12 @@ public class BlurBackdropView extends View {
 
         
         if (w > 0 && h > 0) {
+            boolean isDark = ThemeTokens.isDarkMode(getContext());
+            int rimStart = isDark ? ThemeTokens.COLOR_RIM_START : 0x4D000000;
+            int rimEnd = isDark ? ThemeTokens.COLOR_RIM_END : 0x0A000000;
             LinearGradient rimShader = new LinearGradient(
                     0, 0, w, h,
-                    new int[]{ThemeTokens.COLOR_RIM_START, ThemeTokens.COLOR_RIM_END},
+                    new int[]{rimStart, rimEnd},
                     new float[]{0f, 1f},
                     Shader.TileMode.CLAMP
             );
@@ -115,11 +118,11 @@ public class BlurBackdropView extends View {
                     canvas.drawRenderNode(node);
 
                     
-                    mPaint.setColor(0xC01C1C1E);
+                    boolean isDark = ThemeTokens.isDarkMode(getContext());
+                    mPaint.setColor(isDark ? 0xC01C1C1E : 0xC0FFFFFF);
                     canvas.drawRect(mRect, mPaint);
 
-                    
-                    mPaint.setColor(0x10FFFFFF);
+                    mPaint.setColor(isDark ? 0x10FFFFFF : 0x08000000);
                     canvas.drawRect(mRect, mPaint);
 
                     blurredSuccessfully = true;
@@ -131,9 +134,8 @@ public class BlurBackdropView extends View {
             }
         }
 
-        
         if (!blurredSuccessfully) {
-            mPaint.setColor(ThemeTokens.COLOR_SURFACE_GLASS);
+            mPaint.setColor(ThemeTokens.getSurfaceGlassColor(getContext()));
             canvas.drawRect(mRect, mPaint);
         }
 

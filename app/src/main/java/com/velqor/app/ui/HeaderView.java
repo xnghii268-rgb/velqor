@@ -6,6 +6,7 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Environment;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.widget.HorizontalScrollView;
@@ -60,7 +61,7 @@ public class HeaderView extends LinearLayout {
         mLargeTitleText.setText("VELQOR");
         mLargeTitleText.setTextSize(34);
         mLargeTitleText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
-        mLargeTitleText.setTextColor(ThemeTokens.COLOR_LABEL);
+        mLargeTitleText.setTextColor(ThemeTokens.getLabelColor(getContext()));
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         header.addView(mLargeTitleText, titleLp);
 
@@ -148,19 +149,34 @@ public class HeaderView extends LinearLayout {
         TextView chip = new TextView(getContext());
         chip.setText(label);
         chip.setTextSize(12);
-        chip.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        chip.setPadding(ThemeTokens.dp(getContext(), 10), ThemeTokens.dp(getContext(), 4),
-                ThemeTokens.dp(getContext(), 10), ThemeTokens.dp(getContext(), 4));
+        chip.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
+        chip.setTextColor(ThemeTokens.getSecondaryLabelColor(getContext()));
+        chip.setPadding(ThemeTokens.dp(getContext(), 12), ThemeTokens.dp(getContext(), 6),
+                ThemeTokens.dp(getContext(), 12), ThemeTokens.dp(getContext(), 6));
 
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadius(ThemeTokens.dp(getContext(), 999));
-        bg.setColor(0x18FFFFFF);
+        bg.setColor(ThemeTokens.getActionGroupBgColor(getContext()));
+        bg.setStroke(Math.max(1, ThemeTokens.dp(getContext(), 1) / 2), ThemeTokens.getStrokeColor(getContext()));
         chip.setBackground(bg);
 
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         lp.rightMargin = ThemeTokens.dp(getContext(), 6);
         chip.setLayoutParams(lp);
+
+        chip.setOnTouchListener((view, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate().scaleX(0.95f).scaleY(0.95f).setDuration(80).start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start();
+                    break;
+            }
+            return false;
+        });
 
         chip.setOnClickListener(v -> {
             if (target != null && target.exists() && mListener != null) {
@@ -203,7 +219,7 @@ public class HeaderView extends LinearLayout {
 
     public void setScrolledState(boolean isScrolled) {
         if (isScrolled) {
-            setBackgroundColor(ThemeTokens.COLOR_SURFACE_GLASS);
+            setBackgroundColor(ThemeTokens.getSurfaceGlassColor(getContext()));
             mLargeTitleText.setTextSize(17);
             mLargeTitleText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
             mLargeTitleText.setGravity(Gravity.CENTER_VERTICAL);
@@ -247,14 +263,19 @@ public class HeaderView extends LinearLayout {
             chip.setText(p.name);
             chip.setTextSize(13);
             chip.setGravity(Gravity.CENTER);
-            chip.setTextColor(isLast ? ThemeTokens.COLOR_LABEL : ThemeTokens.COLOR_SEC_LABEL);
+            chip.setTextColor(isLast ? ThemeTokens.getLabelColor(getContext()) : ThemeTokens.getSecondaryLabelColor(getContext()));
             chip.setTypeface(isLast ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
-            chip.setPadding(ThemeTokens.dp(getContext(), 10), ThemeTokens.dp(getContext(), 5),
-                    ThemeTokens.dp(getContext(), 10), ThemeTokens.dp(getContext(), 5));
+            chip.setPadding(ThemeTokens.dp(getContext(), 12), ThemeTokens.dp(getContext(), 5),
+                    ThemeTokens.dp(getContext(), 12), ThemeTokens.dp(getContext(), 5));
 
             GradientDrawable chipBg = new GradientDrawable();
             chipBg.setCornerRadius(ThemeTokens.dp(getContext(), 999));
-            chipBg.setColor(isLast ? ThemeTokens.COLOR_SURFACE_ELEVATED : 0x1A545458);
+            if (isLast) {
+                chipBg.setColor(ThemeTokens.getActionGroupBgColor(getContext()));
+                chipBg.setStroke(Math.max(1, ThemeTokens.dp(getContext(), 1) / 2), ThemeTokens.getStrokeColor(getContext()));
+            } else {
+                chipBg.setColor(ThemeTokens.isDarkMode(getContext()) ? 0x18FFFFFF : 0x0F000000);
+            }
             chip.setBackground(chipBg);
 
             chip.setOnClickListener(v -> {
@@ -269,7 +290,7 @@ public class HeaderView extends LinearLayout {
             if (!isLast) {
                 TextView arrow = new TextView(getContext());
                 arrow.setText(" › ");
-                arrow.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+                arrow.setTextColor(ThemeTokens.getSecondaryLabelColor(getContext()));
                 arrow.setTextSize(13);
                 arrow.setPadding(ThemeTokens.dp(getContext(), 2), 0, ThemeTokens.dp(getContext(), 2), 0);
                 mBreadcrumbContainer.addView(arrow);
@@ -287,15 +308,29 @@ public class HeaderView extends LinearLayout {
 
         GradientDrawable bg = new GradientDrawable();
         bg.setShape(GradientDrawable.OVAL);
-        bg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
+        bg.setColor(ThemeTokens.getActionGroupBgColor(getContext()));
+        bg.setStroke(Math.max(1, ThemeTokens.dp(getContext(), 1) / 2), ThemeTokens.getStrokeColor(getContext()));
         btn.setBackground(bg);
 
         ImageView icon = new ImageView(getContext());
         icon.setImageResource(iconResId);
-        icon.setColorFilter(ThemeTokens.COLOR_ACCENT);
+        icon.setColorFilter(ThemeTokens.getAccentColor(getContext()));
         int iconSize = ThemeTokens.dp(getContext(), 18);
         icon.setLayoutParams(new LinearLayout.LayoutParams(iconSize, iconSize));
         btn.addView(icon);
+
+        btn.setOnTouchListener((view, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate().scaleX(0.92f).scaleY(0.92f).setDuration(80).start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start();
+                    break;
+            }
+            return false;
+        });
 
         btn.setOnClickListener(listener);
         return btn;
