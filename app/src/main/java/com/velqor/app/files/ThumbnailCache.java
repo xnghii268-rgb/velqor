@@ -42,7 +42,7 @@ public final class ThumbnailCache {
 
     public static String generateKey(File file) {
         if (file == null) return "";
-        return file.getAbsolutePath().hashCode() + "_" + file.lastModified() + "_" + file.length();
+        return "v2_" + file.getAbsolutePath().hashCode() + "_" + file.lastModified() + "_" + file.length();
     }
 
     public Bitmap get(String key) {

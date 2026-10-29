@@ -6,6 +6,8 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
@@ -317,6 +319,8 @@ public class MainActivity extends Activity {
                             openImageViewer(clickedFile);
                         } else if (TextFileIO.isTextFile(clickedFile)) {
                             openTextEditor(clickedFile);
+                        } else if (isApkFile(clickedFile)) {
+                            installApk(clickedFile);
                         } else {
                             showFileActionSheet(clickedFile);
                         }
@@ -446,8 +450,14 @@ public class MainActivity extends Activity {
         LinearLayout scrollContent = new LinearLayout(this);
         scrollContent.setOrientation(LinearLayout.VERTICAL);
 
-        // Group 1: Chỉnh sửa (nếu text), Mở bằng…, Chia sẻ, Chi tiết
+        // Group 1: Cài đặt (nếu APK), Chỉnh sửa (nếu text), Mở bằng…, Chia sẻ, Chi tiết
         LinearLayout group1 = IosSheet.createActionGroup(this);
+        if (isApkFile(f)) {
+            group1.addView(IosSheet.createActionRow(this, R.drawable.ic_file_apk, "Cài đặt ứng dụng", false, v -> {
+                dialog.dismiss();
+                installApk(f);
+            }, true));
+        }
         if (TextFileIO.isTextFile(f)) {
             group1.addView(IosSheet.createActionRow(this, R.drawable.ic_rename, "Chỉnh sửa", false, v -> {
                 dialog.dismiss();
@@ -951,6 +961,12 @@ public class MainActivity extends Activity {
                     if (clickedFile.isDirectory()) {
                         mCurrentDir = clickedFile;
                         refreshDirectory();
+                    } else if (ImageViewerActivity.isImageFile(clickedFile)) {
+                        openImageViewer(clickedFile);
+                    } else if (TextFileIO.isTextFile(clickedFile)) {
+                        openTextEditor(clickedFile);
+                    } else if (isApkFile(clickedFile)) {
+                        installApk(clickedFile);
                     } else {
                         showFileActionSheet(clickedFile);
                     }
@@ -1059,14 +1075,67 @@ public class MainActivity extends Activity {
         startActivity(intent);
     }
 
+    private boolean isApkFile(File f) {
+        return f != null && !f.isDirectory() && f.getName().toLowerCase().endsWith(".apk");
+    }
+
+    private void installApk(File f) {
+        if (f == null || !f.exists()) {
+            Toast.makeText(this, "Tệp APK không tồn tại", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            if (!getPackageManager().canRequestPackageInstalls()) {
+                try {
+                    Intent manageIntent = new Intent(Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES);
+                    manageIntent.setData(Uri.parse("package:" + getPackageName()));
+                    startActivity(manageIntent);
+                    Toast.makeText(this, "Vui lòng cho phép cài đặt ứng dụng không rõ nguồn cho VELQOR", Toast.LENGTH_LONG).show();
+                } catch (Exception e) {
+                    Intent settingsIntent = new Intent(Settings.ACTION_SECURITY_SETTINGS);
+                    startActivity(settingsIntent);
+                    Toast.makeText(this, "Vui lòng bật quyền cài đặt ứng dụng không rõ nguồn", Toast.LENGTH_LONG).show();
+                }
+                return;
+            }
+        }
+
+        try {
+            Uri apkUri = VelqorFileProvider.getUriForFile(this, "com.velqor.app.fileprovider", f);
+            Intent installIntent = new Intent(Intent.ACTION_VIEW);
+            installIntent.setDataAndType(apkUri, "application/vnd.android.package-archive");
+            installIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(installIntent, PackageManager.MATCH_DEFAULT_ONLY);
+            for (ResolveInfo resolveInfo : resInfoList) {
+                String packageName = resolveInfo.activityInfo.packageName;
+                grantUriPermission(packageName, apkUri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+
+            startActivity(installIntent);
+        } catch (Exception e) {
+            Toast.makeText(this, "Lỗi khởi chạy cài đặt: " + e.getMessage(), Toast.LENGTH_LONG).show();
+        }
+    }
+
     private void openWith(File f) {
         try {
             Uri uri = VelqorFileProvider.getUriForFile(this, "com.velqor.app.fileprovider", f);
             Intent intent = new Intent(Intent.ACTION_VIEW);
             String mime = getMimeType(f);
             intent.setDataAndType(uri, mime);
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            startActivity(Intent.createChooser(intent, "Mở bằng…"));
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_TASK);
+
+            List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
+            for (ResolveInfo resolveInfo : resInfoList) {
+                String packageName = resolveInfo.activityInfo.packageName;
+                grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+
+            Intent chooser = Intent.createChooser(intent, "Mở bằng…");
+            chooser.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            startActivity(chooser);
         } catch (Exception e) {
             Toast.makeText(this, "Không thể mở tệp: " + e.getMessage(), Toast.LENGTH_SHORT).show();
         }
@@ -1080,6 +1149,13 @@ public class MainActivity extends Activity {
             intent.setType(mime);
             intent.putExtra(Intent.EXTRA_STREAM, uri);
             intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+            List<ResolveInfo> resInfoList = getPackageManager().queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY);
+            for (ResolveInfo resolveInfo : resInfoList) {
+                String packageName = resolveInfo.activityInfo.packageName;
+                grantUriPermission(packageName, uri, Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            }
+
             startActivity(Intent.createChooser(intent, "Chia sẻ tệp"));
         } catch (Exception e) {
             Toast.makeText(this, "Không thể chia sẻ tệp: " + e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -1130,6 +1206,23 @@ public class MainActivity extends Activity {
     }
 
     private String getMimeType(File f) {
+        if (f == null || f.isDirectory()) return "*/*";
+        String name = f.getName().toLowerCase();
+        if (name.endsWith(".apk")) return "application/vnd.android.package-archive";
+        if (name.endsWith(".zip")) return "application/zip";
+        if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) return "application/x-gzip";
+        if (name.endsWith(".tar")) return "application/x-tar";
+        if (name.endsWith(".pdf")) return "application/pdf";
+        if (name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".log") || name.endsWith(".json")) return "text/plain";
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+        if (name.endsWith(".png")) return "image/png";
+        if (name.endsWith(".webp")) return "image/webp";
+        if (name.endsWith(".gif")) return "image/gif";
+        if (name.endsWith(".mp4")) return "video/mp4";
+        if (name.endsWith(".mkv")) return "video/x-matroska";
+        if (name.endsWith(".mp3")) return "audio/mpeg";
+        if (name.endsWith(".m4a")) return "audio/mp4";
+
         String ext = FileRepository.getFileExtension(f).toLowerCase();
         if (ext.isEmpty()) return "*/*";
         String mime = MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);

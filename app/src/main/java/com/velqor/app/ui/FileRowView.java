@@ -97,22 +97,11 @@ public class FileRowView extends LinearLayout {
         iv.setImageResource(iconRes);
         iv.setColorFilter(tintColor);
 
-        if (isMedia) {
-            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
-            android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
-            iv.setLayoutParams(ivLp);
-        } else if (isApk) {
-            int apkIconSize = ThemeTokens.dp(ctx, 34);
-            android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(apkIconSize, apkIconSize);
-            ivLp.gravity = Gravity.CENTER;
-            iv.setLayoutParams(ivLp);
-        } else {
-            int insideSize = ThemeTokens.dp(ctx, ThemeTokens.SIZE_ICON_INSIDE);
-            android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(insideSize, insideSize);
-            ivLp.gravity = Gravity.CENTER;
-            iv.setLayoutParams(ivLp);
-        }
+        int insideSize = ThemeTokens.dp(ctx, isApk ? 32 : ThemeTokens.SIZE_ICON_INSIDE);
+        android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(insideSize, insideSize);
+        ivLp.gravity = Gravity.CENTER;
+        iv.setLayoutParams(ivLp);
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
         iconBox.addView(iv);
 
         // Thumbnail Loader integration (if enabled in preferences)

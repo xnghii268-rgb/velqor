@@ -56,6 +56,31 @@ public class VelqorFileProvider extends ContentProvider {
 
     @Override
     public String getType(Uri uri) {
+        if (uri == null) return "application/octet-stream";
+        String path = uri.getPath();
+        if (path == null) return "application/octet-stream";
+        String name = new File(path).getName().toLowerCase();
+        if (name.endsWith(".apk")) return "application/vnd.android.package-archive";
+        if (name.endsWith(".zip")) return "application/zip";
+        if (name.endsWith(".tar.gz") || name.endsWith(".tgz")) return "application/x-gzip";
+        if (name.endsWith(".tar")) return "application/x-tar";
+        if (name.endsWith(".pdf")) return "application/pdf";
+        if (name.endsWith(".txt") || name.endsWith(".md") || name.endsWith(".log") || name.endsWith(".json")) return "text/plain";
+        if (name.endsWith(".jpg") || name.endsWith(".jpeg")) return "image/jpeg";
+        if (name.endsWith(".png")) return "image/png";
+        if (name.endsWith(".webp")) return "image/webp";
+        if (name.endsWith(".gif")) return "image/gif";
+        if (name.endsWith(".mp4")) return "video/mp4";
+        if (name.endsWith(".mkv")) return "video/x-matroska";
+        if (name.endsWith(".mp3")) return "audio/mpeg";
+        if (name.endsWith(".m4a")) return "audio/mp4";
+
+        int dot = name.lastIndexOf('.');
+        if (dot > 0 && dot < name.length() - 1) {
+            String ext = name.substring(dot + 1);
+            String mime = android.webkit.MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext);
+            if (mime != null) return mime;
+        }
         return "application/octet-stream";
     }
 

@@ -57,7 +57,7 @@ public final class ThumbnailLoader {
         // Fast memory/disk cache check
         Bitmap cached = mCache.get(key);
         if (cached != null) {
-            targetView.setImageBitmap(cached);
+            applyThumbnailToView(file, targetView, cached);
             return;
         }
 
@@ -87,7 +87,7 @@ public final class ThumbnailLoader {
                 mMainHandler.post(() -> {
                     // Check tag to avoid race conditions when views are recycled
                     if (key.equals(targetView.getTag())) {
-                        targetView.setImageBitmap(finalBitmap);
+                        applyThumbnailToView(file, targetView, finalBitmap);
                         AlphaAnimation anim = new AlphaAnimation(0.2f, 1.0f);
                         anim.setDuration(150);
                         targetView.startAnimation(anim);
@@ -97,6 +97,31 @@ public final class ThumbnailLoader {
         });
     }
 
+    private void applyThumbnailToView(File file, ImageView targetView, Bitmap bm) {
+        if (targetView == null || bm == null) return;
+        targetView.clearColorFilter();
+        targetView.setImageBitmap(bm);
+
+        String name = file != null ? file.getName().toLowerCase() : "";
+        if (isImageFile(name) || isVideoFile(name)) {
+            targetView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            targetView.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        } else if (name.endsWith(".apk")) {
+            targetView.setScaleType(ImageView.ScaleType.FIT_CENTER);
+            int s = com.velqor.app.tokens.ThemeTokens.dp(targetView.getContext(), 34);
+            android.widget.FrameLayout.LayoutParams lp = new android.widget.FrameLayout.LayoutParams(s, s);
+            lp.gravity = android.view.Gravity.CENTER;
+            targetView.setLayoutParams(lp);
+        } else {
+            targetView.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            targetView.setLayoutParams(new android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        }
+    }
+
     private Bitmap decodeApkIcon(File file) {
         try {
             PackageManager pm = mContext.getPackageManager();
@@ -104,11 +129,26 @@ public final class ThumbnailLoader {
             if (pi != null) {
                 pi.applicationInfo.sourceDir = file.getAbsolutePath();
                 pi.applicationInfo.publicSourceDir = file.getAbsolutePath();
-                Drawable iconDrawable = pi.applicationInfo.loadIcon(pm);
+                Drawable iconDrawable = null;
+                try {
+                    iconDrawable = pi.applicationInfo.loadIcon(pm);
+                } catch (Throwable t) {
+                    try {
+                        android.content.res.Resources res = pm.getResourcesForApplication(pi.applicationInfo);
+                        if (pi.applicationInfo.icon != 0) {
+                            iconDrawable = res.getDrawable(pi.applicationInfo.icon, null);
+                        }
+                    } catch (Throwable ignored) {}
+                }
                 if (iconDrawable != null) {
-                    Bitmap bm = Bitmap.createBitmap(96, 96, Bitmap.Config.ARGB_8888);
+                    int w = iconDrawable.getIntrinsicWidth();
+                    int h = iconDrawable.getIntrinsicHeight();
+                    if (w <= 0 || h <= 0) { w = 96; h = 96; }
+                    w = Math.min(w, 192);
+                    h = Math.min(h, 192);
+                    Bitmap bm = Bitmap.createBitmap(w, h, Bitmap.Config.ARGB_8888);
                     Canvas canvas = new Canvas(bm);
-                    iconDrawable.setBounds(0, 0, 96, 96);
+                    iconDrawable.setBounds(0, 0, w, h);
                     iconDrawable.draw(canvas);
                     return bm;
                 }
