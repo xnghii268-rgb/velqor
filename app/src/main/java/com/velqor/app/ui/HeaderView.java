@@ -27,12 +27,17 @@ public class HeaderView extends LinearLayout {
         void onNewFolderClick();
         void onMoreClick();
         void onBreadcrumbClick(File directory);
+        void onViewModeToggleClick();
     }
 
     private TextView mLargeTitleText;
     private HorizontalScrollView mBreadcrumbScroll;
     private LinearLayout mBreadcrumbContainer;
+    private HorizontalScrollView mShortcutsScroll;
+    private LinearLayout mShortcutsContainer;
     private View mBtnNewItem;
+    private ImageView mBtnViewModeIcon;
+    private boolean mIsGridMode = false;
     private OnHeaderActionListener mListener;
 
     public HeaderView(Context context, int statusBarHeight) {
@@ -44,7 +49,6 @@ public class HeaderView extends LinearLayout {
         setOrientation(LinearLayout.VERTICAL);
         setBackgroundColor(Color.TRANSPARENT);
 
-        // Header Top Row
         LinearLayout header = new LinearLayout(getContext());
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setPadding(ThemeTokens.dp(getContext(), 16), statusBarHeight + ThemeTokens.dp(getContext(), 8),
@@ -59,11 +63,21 @@ public class HeaderView extends LinearLayout {
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         header.addView(mLargeTitleText, titleLp);
 
-        // Round Action Buttons (36dp)
         View btnSearch = createRoundButton(R.drawable.ic_search, v -> {
             if (mListener != null) mListener.onSearchClick();
         });
         header.addView(btnSearch);
+
+        View btnViewMode = createRoundButton(R.drawable.ic_view_grid, v -> {
+            if (mListener != null) mListener.onViewModeToggleClick();
+        });
+        mBtnViewModeIcon = (ImageView) ((LinearLayout) btnViewMode).getChildAt(0);
+        LinearLayout.LayoutParams vmMargin = new LinearLayout.LayoutParams(
+                ThemeTokens.dp(getContext(), ThemeTokens.SIZE_HEADER_BTN),
+                ThemeTokens.dp(getContext(), ThemeTokens.SIZE_HEADER_BTN));
+        vmMargin.leftMargin = ThemeTokens.dp(getContext(), 8);
+        btnViewMode.setLayoutParams(vmMargin);
+        header.addView(btnViewMode);
 
         View btnNewFolder = createRoundButton(R.drawable.ic_plus, v -> {
             if (mListener != null) mListener.onNewFolderClick();
@@ -88,11 +102,10 @@ public class HeaderView extends LinearLayout {
 
         addView(header);
 
-        // Breadcrumbs Row
         mBreadcrumbScroll = new HorizontalScrollView(getContext());
         mBreadcrumbScroll.setHorizontalScrollBarEnabled(false);
         mBreadcrumbScroll.setPadding(ThemeTokens.dp(getContext(), 16), ThemeTokens.dp(getContext(), 2),
-                ThemeTokens.dp(getContext(), 16), ThemeTokens.dp(getContext(), 6));
+                ThemeTokens.dp(getContext(), 16), ThemeTokens.dp(getContext(), 4));
 
         mBreadcrumbContainer = new LinearLayout(getContext());
         mBreadcrumbContainer.setOrientation(LinearLayout.HORIZONTAL);
@@ -100,12 +113,68 @@ public class HeaderView extends LinearLayout {
         mBreadcrumbScroll.addView(mBreadcrumbContainer);
         addView(mBreadcrumbScroll);
 
-        // Bottom separator line (0.5dp)
+        mShortcutsScroll = new HorizontalScrollView(getContext());
+        mShortcutsScroll.setHorizontalScrollBarEnabled(false);
+        mShortcutsScroll.setPadding(ThemeTokens.dp(getContext(), 16), 0,
+                ThemeTokens.dp(getContext(), 16), ThemeTokens.dp(getContext(), 6));
+
+        mShortcutsContainer = new LinearLayout(getContext());
+        mShortcutsContainer.setOrientation(LinearLayout.HORIZONTAL);
+        mShortcutsContainer.setGravity(Gravity.CENTER_VERTICAL);
+        buildShortcuts();
+        mShortcutsScroll.addView(mShortcutsContainer);
+        addView(mShortcutsScroll);
+
         View divider = new View(getContext());
         divider.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
         int divH = Math.max(1, ThemeTokens.dp(getContext(), 1) / 2);
         divider.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, divH));
         addView(divider);
+    }
+
+    private void buildShortcuts() {
+        mShortcutsContainer.removeAllViews();
+        File root = Environment.getExternalStorageDirectory();
+        addShortcutChip("Tải về", new File(root, "Download"));
+        addShortcutChip("Ảnh/DCIM", new File(root, "DCIM"));
+        addShortcutChip("Tài liệu", new File(root, "Documents"));
+        addShortcutChip("Hình ảnh", new File(root, "Pictures"));
+        addShortcutChip("Âm nhạc", new File(root, "Music"));
+        addShortcutChip("Phim", new File(root, "Movies"));
+    }
+
+    private void addShortcutChip(String label, File target) {
+        TextView chip = new TextView(getContext());
+        chip.setText(label);
+        chip.setTextSize(12);
+        chip.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        chip.setPadding(ThemeTokens.dp(getContext(), 10), ThemeTokens.dp(getContext(), 4),
+                ThemeTokens.dp(getContext(), 10), ThemeTokens.dp(getContext(), 4));
+
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(ThemeTokens.dp(getContext(), 999));
+        bg.setColor(0x18FFFFFF);
+        chip.setBackground(bg);
+
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lp.rightMargin = ThemeTokens.dp(getContext(), 6);
+        chip.setLayoutParams(lp);
+
+        chip.setOnClickListener(v -> {
+            if (target != null && target.exists() && mListener != null) {
+                mListener.onBreadcrumbClick(target);
+            }
+        });
+
+        mShortcutsContainer.addView(chip);
+    }
+
+    public void setViewMode(boolean isGrid) {
+        mIsGridMode = isGrid;
+        if (mBtnViewModeIcon != null) {
+            mBtnViewModeIcon.setImageResource(isGrid ? R.drawable.ic_view_list : R.drawable.ic_view_grid);
+        }
     }
 
     public void setOnHeaderActionListener(OnHeaderActionListener listener) {

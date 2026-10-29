@@ -15,13 +15,13 @@ import com.velqor.app.tokens.ThemeTokens;
 public class BlurBackdropView extends View {
     private View mTargetView;
     private float mCornerRadius;
-    private int mStrokeWidth = 2; // ~1dp
+    private int mStrokeWidth = 2; 
     private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path mClipPath = new Path();
     private final RectF mRect = new RectF();
 
-    // RenderNode for Hardware Blur (API 31+)
+    
     private Object mRenderNode;
     private Object mBlurEffect;
     private boolean mBlurInitialized = false;
@@ -56,7 +56,7 @@ public class BlurBackdropView extends View {
         mRect.set(0, 0, w, h);
         updateClipPath();
 
-        // 1. Specular Rim Gradient: Pure neutral white (35% top-left -> 5% bottom-right), NO red/color tint
+        
         if (w > 0 && h > 0) {
             LinearGradient rimShader = new LinearGradient(
                     0, 0, w, h,
@@ -84,7 +84,7 @@ public class BlurBackdropView extends View {
 
         boolean blurredSuccessfully = false;
 
-        // API 31+ Hardware Accelerated Realtime Backdrop Blur
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && canvas.isHardwareAccelerated() && mTargetView != null && !mIsRenderingBackdrop) {
             try {
                 if (!mBlurInitialized) {
@@ -98,7 +98,7 @@ public class BlurBackdropView extends View {
 
                     android.graphics.RecordingCanvas recordingCanvas = node.beginRecording();
 
-                    // Calculate coordinate offset from target view to this backdrop view
+                    
                     int[] locTarget = new int[2];
                     int[] locThis = new int[2];
                     mTargetView.getLocationInWindow(locTarget);
@@ -114,11 +114,11 @@ public class BlurBackdropView extends View {
 
                     canvas.drawRenderNode(node);
 
-                    // 1. Base dark glass tint under blur (alpha ~0.75) to hide text behind
+                    
                     mPaint.setColor(0xC01C1C1E);
                     canvas.drawRect(mRect, mPaint);
 
-                    // 2. Subtle frosted glass white tint overlay (alpha ~0.06)
+                    
                     mPaint.setColor(0x10FFFFFF);
                     canvas.drawRect(mRect, mPaint);
 
@@ -131,7 +131,7 @@ public class BlurBackdropView extends View {
             }
         }
 
-        // Fallback for API < 31 or if render node fails: 94-96% alpha glass surface
+        
         if (!blurredSuccessfully) {
             mPaint.setColor(ThemeTokens.COLOR_SURFACE_GLASS);
             canvas.drawRect(mRect, mPaint);
@@ -139,7 +139,7 @@ public class BlurBackdropView extends View {
 
         canvas.restore();
 
-        // 3. Draw Specular Rim Stroke cleanly without clipping (0.5-1dp, white alpha 0.35 -> 0.05)
+        
         float halfStroke = mStrokeWidth / 2f;
         RectF strokeRect = new RectF(halfStroke, halfStroke, getWidth() - halfStroke, getHeight() - halfStroke);
         canvas.drawRoundRect(strokeRect, mCornerRadius - halfStroke, mCornerRadius - halfStroke, mStrokePaint);

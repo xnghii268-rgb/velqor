@@ -6,6 +6,7 @@ import android.content.ClipData;
 import android.content.ClipboardManager;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
@@ -29,6 +30,7 @@ import android.view.animation.OvershootInterpolator;
 import android.webkit.MimeTypeMap;
 import android.widget.EditText;
 import android.widget.FrameLayout;
+import android.widget.HorizontalScrollView;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -37,10 +39,11 @@ import android.widget.Toast;
 
 import com.velqor.app.archive.ZipManager;
 import com.velqor.app.files.FileRepository;
+import com.velqor.app.files.StorageScanner;
 import com.velqor.app.files.TextFileIO;
-import com.velqor.app.security.HashUtils;
-import com.velqor.app.security.VaultManager;
+import com.velqor.app.files.TrashManager;
 import com.velqor.app.tokens.ThemeTokens;
+import com.velqor.app.ui.DonutChartView;
 import com.velqor.app.ui.FileRowView;
 import com.velqor.app.ui.FloatingTabBar;
 import com.velqor.app.ui.HeaderView;
@@ -71,7 +74,7 @@ public class MainActivity extends Activity {
     private TextView mSelectionCountText;
 
     private boolean mShowHidden = false;
-    private int mSortField = 0; // 0: Name, 1: Date, 2: Size, 3: Type
+    private int mSortField = 0; 
     private boolean mSortAsc = true;
 
     private boolean mIsSelectionMode = false;
@@ -81,20 +84,22 @@ public class MainActivity extends Activity {
     private boolean mIsCutAction = false;
     private String mCurrentTab = "files";
     private boolean mIsSearchActive = false;
+    private boolean mIsGridMode = false;
     private long mLastBackPressTime = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // 1. True Edge-to-Edge Fullscreen
+        
         setupEdgeToEdge();
 
         mCurrentDir = Environment.getExternalStorageDirectory();
         mShowHidden = getSharedPreferences("velqor_prefs", MODE_PRIVATE).getBoolean("show_hidden", false);
+        mIsGridMode = getSharedPreferences("velqor_prefs", MODE_PRIVATE).getBoolean("grid_mode", false);
         checkAndRequestPermissions();
 
-        // Predictive back gesture support for Android 13+
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
                 android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
@@ -106,11 +111,11 @@ public class MainActivity extends Activity {
             );
         }
 
-        // 2. Build iOS-Grade Layered View Hierarchy
+        
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(ThemeTokens.COLOR_BG);
 
-        // Main Scrollable Area with Inset Grouped List
+        
         mScrollView = new ScrollView(this);
         mScrollView.setFillViewport(true);
         mScrollView.setVerticalScrollBarEnabled(false);
@@ -129,10 +134,17 @@ public class MainActivity extends Activity {
         mScrollView.addView(scrollContent);
         root.addView(mScrollView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // Header Layer: Sticky iOS Frosted Header & Breadcrumbs
+        
         mHeaderView = new HeaderView(this, getStatusBarHeight());
+        mHeaderView.setViewMode(mIsGridMode);
         mHeaderView.setOnHeaderActionListener(new HeaderView.OnHeaderActionListener() {
             @Override public void onSearchClick() { showSearchSheet(); }
+            @Override public void onViewModeToggleClick() {
+                mIsGridMode = !mIsGridMode;
+                mHeaderView.setViewMode(mIsGridMode);
+                getSharedPreferences("velqor_prefs", MODE_PRIVATE).edit().putBoolean("grid_mode", mIsGridMode).apply();
+                refreshDirectory();
+            }
             @Override public void onNewFolderClick() {
                 NewItemSheet.showCreateMenu(MainActivity.this, mCurrentDir, new NewItemSheet.OnItemCreateListener() {
                     @Override
@@ -160,7 +172,7 @@ public class MainActivity extends Activity {
         headerLp.gravity = Gravity.TOP;
         root.addView(mHeaderView, headerLp);
 
-        // Multi-Selection Floating Action Bar
+        
         mSelectionBar = createSelectionBar();
         FrameLayout.LayoutParams selLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         selLp.gravity = Gravity.TOP;
@@ -169,12 +181,12 @@ public class MainActivity extends Activity {
 
         int barHeight = ThemeTokens.dp(this, ThemeTokens.HEIGHT_TAB_BAR);
 
-        // Bottom Gradient Scrim (Requirement 4): Fades to 90% background to hide poke-through content
+        
         int scrimHeight = barHeight + getNavBarHeight() + ThemeTokens.dp(this, 16);
         mBottomGradientScrim = new View(this) {
             @Override
             public boolean onTouchEvent(MotionEvent event) {
-                return false; // Does not block touches to underlying list
+                return false; 
             }
         };
         GradientDrawable scrimBg = new GradientDrawable(
@@ -188,7 +200,7 @@ public class MainActivity extends Activity {
         scrimLp.gravity = Gravity.BOTTOM;
         root.addView(mBottomGradientScrim, scrimLp);
 
-        // Floating Liquid Glass Tab Bar (Hardware Blur API 31+ / Thick Glass Fallback)
+        
         mFloatingTabBar = new FloatingTabBar(this);
         mFloatingTabBar.setBackdropSource(mScrollView);
         mFloatingTabBar.setOnTabSelectedListener((tabKey, index) -> {
@@ -204,7 +216,7 @@ public class MainActivity extends Activity {
         tabLp.bottomMargin = getNavBarHeight() + ThemeTokens.dp(this, 12);
         root.addView(mFloatingTabBar, tabLp);
 
-        // Scroll Behavior: Header shrink, Backdrop Invalidation & Auto-hide on fast scroll down
+        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             mScrollView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
                 mHeaderView.setScrolledState(scrollY > ThemeTokens.dp(this, 30));
@@ -276,19 +288,19 @@ public class MainActivity extends Activity {
         LinearLayout.LayoutParams countLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         bar.addView(mSelectionCountText, countLp);
 
-        // Action: Batch Options Sheet
+        
         ImageView btnMore = createBarIcon(R.drawable.ic_more_dots, ThemeTokens.COLOR_ACCENT, v -> showBatchOptionsSheet());
         bar.addView(btnMore);
 
-        // Action: Compress
+        
         ImageView btnZip = createBarIcon(R.drawable.ic_file_archive, ThemeTokens.COLOR_ACCENT, v -> compressSelected());
         bar.addView(btnZip);
 
-        // Action: Delete
+        
         ImageView btnDel = createBarIcon(R.drawable.ic_delete, ThemeTokens.COLOR_DANGER, v -> showBatchDeleteConfirmSheet());
         bar.addView(btnDel);
 
-        // Action: Done
+        
         TextView btnDone = new TextView(this);
         btnDone.setText("Xong");
         btnDone.setTextColor(ThemeTokens.COLOR_ACCENT);
@@ -381,10 +393,6 @@ public class MainActivity extends Activity {
             refreshDirectory();
         } else if ("archive".equals(tabKey)) {
             showArchiveTab();
-        } else if ("vault".equals(tabKey)) {
-            showVaultTab();
-        } else if ("hash".equals(tabKey)) {
-            showHashTab();
         } else if ("settings".equals(tabKey)) {
             showSettingsTab();
         }
@@ -401,47 +409,82 @@ public class MainActivity extends Activity {
             return;
         }
 
-        GradientDrawable groupBg = new GradientDrawable();
-        groupBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_GROUP_LIST));
-        groupBg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
-        mFileListGroup.setBackground(groupBg);
-
-        for (int i = 0; i < files.size(); i++) {
-            File f = files.get(i);
-            boolean isLast = (i == files.size() - 1);
-            boolean isSelected = mSelectedPaths.contains(f.getAbsolutePath());
-
-            View row = FileRowView.createRow(this, f, isLast, isSelected, mIsSelectionMode, new FileRowView.OnFileRowClickListener() {
-                @Override
-                public void onClick(File clickedFile) {
-                    if (mIsSelectionMode) {
-                        toggleFileSelection(clickedFile.getAbsolutePath());
-                    } else {
-                        if (clickedFile.isDirectory()) {
-                            mCurrentDir = clickedFile;
-                            refreshDirectory();
-                        } else if (ImageViewerActivity.isImageFile(clickedFile)) {
-                            openImageViewer(clickedFile);
-                        } else if (TextFileIO.isTextFile(clickedFile)) {
-                            openTextEditor(clickedFile);
-                        } else if (isApkFile(clickedFile)) {
-                            installApk(clickedFile);
-                        } else {
-                            showFileActionSheet(clickedFile);
-                        }
-                    }
-                }
-
-                @Override
-                public void onLongClick(File clickedFile) {
-                    if (mIsSelectionMode) {
-                        toggleFileSelection(clickedFile.getAbsolutePath());
+        FileRowView.OnFileRowClickListener rowListener = new FileRowView.OnFileRowClickListener() {
+            @Override
+            public void onClick(File clickedFile) {
+                if (mIsSelectionMode) {
+                    toggleFileSelection(clickedFile.getAbsolutePath());
+                } else {
+                    if (clickedFile.isDirectory()) {
+                        mCurrentDir = clickedFile;
+                        refreshDirectory();
+                    } else if (ImageViewerActivity.isImageFile(clickedFile)) {
+                        openImageViewer(clickedFile);
+                    } else if (TextFileIO.isTextFile(clickedFile)) {
+                        openTextEditor(clickedFile);
+                    } else if (isApkFile(clickedFile)) {
+                        installApk(clickedFile);
                     } else {
                         showFileActionSheet(clickedFile);
                     }
                 }
-            });
-            mFileListGroup.addView(row);
+            }
+
+            @Override
+            public void onLongClick(File clickedFile) {
+                if (mIsSelectionMode) {
+                    toggleFileSelection(clickedFile.getAbsolutePath());
+                } else {
+                    showFileActionSheet(clickedFile);
+                }
+            }
+        };
+
+        if (mIsGridMode) {
+            mFileListGroup.setBackground(null);
+            for (int i = 0; i < files.size(); i += 2) {
+                LinearLayout gridRow = new LinearLayout(this);
+                gridRow.setOrientation(LinearLayout.HORIZONTAL);
+                LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+                rlp.bottomMargin = ThemeTokens.dp(this, 8);
+                gridRow.setLayoutParams(rlp);
+
+                File f1 = files.get(i);
+                boolean isSel1 = mSelectedPaths.contains(f1.getAbsolutePath());
+                View card1 = FileRowView.createGridCard(this, f1, isSel1, mIsSelectionMode, rowListener);
+                LinearLayout.LayoutParams c1Lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                c1Lp.rightMargin = ThemeTokens.dp(this, 4);
+                gridRow.addView(card1, c1Lp);
+
+                if (i + 1 < files.size()) {
+                    File f2 = files.get(i + 1);
+                    boolean isSel2 = mSelectedPaths.contains(f2.getAbsolutePath());
+                    View card2 = FileRowView.createGridCard(this, f2, isSel2, mIsSelectionMode, rowListener);
+                    LinearLayout.LayoutParams c2Lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+                    c2Lp.leftMargin = ThemeTokens.dp(this, 4);
+                    gridRow.addView(card2, c2Lp);
+                } else {
+                    View dummy = new View(this);
+                    LinearLayout.LayoutParams dLp = new LinearLayout.LayoutParams(0, 1, 1f);
+                    dLp.leftMargin = ThemeTokens.dp(this, 4);
+                    gridRow.addView(dummy, dLp);
+                }
+                mFileListGroup.addView(gridRow);
+            }
+        } else {
+            GradientDrawable groupBg = new GradientDrawable();
+            groupBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_GROUP_LIST));
+            groupBg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
+            mFileListGroup.setBackground(groupBg);
+
+            for (int i = 0; i < files.size(); i++) {
+                File f = files.get(i);
+                boolean isLast = (i == files.size() - 1);
+                boolean isSelected = mSelectedPaths.contains(f.getAbsolutePath());
+                View row = FileRowView.createRow(this, f, isLast, isSelected, mIsSelectionMode, rowListener);
+                mFileListGroup.addView(row);
+            }
         }
     }
 
@@ -485,15 +528,15 @@ public class MainActivity extends Activity {
         mFileListGroup.addView(emptyLayout);
     }
 
-    // ==========================================
-    // ACTION SHEETS (MODAL BOTTOM SHEETS)
-    // ==========================================
+    
+    
+    
     private void showFileActionSheet(File f) {
         vibrateLight();
         Dialog dialog = IosSheet.createBaseDialog(this);
         LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
 
-        // Header: Icon 40dp + Filename + Metadata footnote
+        
         LinearLayout header = new LinearLayout(this);
         header.setOrientation(LinearLayout.HORIZONTAL);
         header.setGravity(Gravity.CENTER_VERTICAL);
@@ -542,20 +585,20 @@ public class MainActivity extends Activity {
         header.addView(textCol, colLp);
         sheet.addView(header);
 
-        // Separator line 0.5dp
+        
         View sep = new View(this);
         sep.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
         sep.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(this, 1) / 2)));
         sheet.addView(sep);
 
-        // Scrollable container for action groups
+        
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(false);
         sv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         LinearLayout scrollContent = new LinearLayout(this);
         scrollContent.setOrientation(LinearLayout.VERTICAL);
 
-        // Group 1: Cài đặt (nếu APK), Chỉnh sửa (nếu text), Mở bằng…, Chia sẻ, Chi tiết
+        
         LinearLayout group1 = IosSheet.createActionGroup(this);
         if (isApkFile(f)) {
             group1.addView(IosSheet.createActionRow(this, R.drawable.ic_file_apk, "Cài đặt ứng dụng", false, v -> {
@@ -583,7 +626,7 @@ public class MainActivity extends Activity {
         }, false));
         scrollContent.addView(group1);
 
-        // Group 2: Sao chép, Di chuyển, Đổi tên
+        
         LinearLayout group2 = IosSheet.createActionGroup(this);
         group2.addView(IosSheet.createActionRow(this, R.drawable.ic_copy, "Sao chép", false, v -> {
             dialog.dismiss();
@@ -599,14 +642,14 @@ public class MainActivity extends Activity {
         }, false));
         scrollContent.addView(group2);
 
-        // Group 3: Nén ZIP, Giải nén, Tính SHA-256, Mã hóa vào Vault
         LinearLayout group3 = IosSheet.createActionGroup(this);
+        boolean isArch = ZipManager.isArchive(f);
         group3.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive, "Nén thành ZIP", false, v -> {
             dialog.dismiss();
             compressSingleToZip(f);
-        }, true));
+        }, isArch));
 
-        if (ZipManager.isArchive(f)) {
+        if (isArch) {
             group3.addView(IosSheet.createActionRow(this, R.drawable.ic_unzip, "Giải nén tại đây", false, v -> {
                 dialog.dismiss();
                 extractZipAsync(f, mCurrentDir);
@@ -614,21 +657,10 @@ public class MainActivity extends Activity {
             group3.addView(IosSheet.createActionRow(this, R.drawable.ic_folder_plus, "Giải nén vào thư mục riêng", false, v -> {
                 dialog.dismiss();
                 extractZipToSeparateDir(f);
-            }, true));
+            }, false));
         }
-
-        group3.addView(IosSheet.createActionRow(this, R.drawable.ic_tab_hash, "Tính SHA-256", false, v -> {
-            dialog.dismiss();
-            computeSha256Async(f);
-        }, true));
-
-        group3.addView(IosSheet.createActionRow(this, R.drawable.ic_lock, "Mã hóa vào Vault", false, v -> {
-            dialog.dismiss();
-            showEncryptToVaultSheet(f);
-        }, false));
         scrollContent.addView(group3);
 
-        // Group 4: Xóa
         LinearLayout group4 = IosSheet.createActionGroup(this);
         group4.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Xóa", true, v -> {
             dialog.dismiss();
@@ -721,7 +753,7 @@ public class MainActivity extends Activity {
             addDetailItem(card, "Loại tệp", "Thư mục");
             addDetailItem(card, "Quyền", (f.canRead() ? "Đọc " : "") + (f.canWrite() ? "Ghi " : ""));
 
-            // Calculate total folder size recursively in background
+            
             new Thread(() -> {
                 FileRepository.FolderInfo info = FileRepository.calculateFolderInfo(f);
                 runOnUiThread(() -> {
@@ -772,160 +804,6 @@ public class MainActivity extends Activity {
 
         container.addView(row);
         return v;
-    }
-
-    private void showSha256Sheet(File f, String hex) {
-        Dialog dialog = IosSheet.createBaseDialog(this);
-        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
-
-        TextView title = new TextView(this);
-        title.setText("Mã băm SHA-256");
-        title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        sheet.addView(title);
-
-        TextView subtitle = new TextView(this);
-        subtitle.setText(f.getName());
-        subtitle.setTextSize(13);
-        subtitle.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        sheet.addView(subtitle);
-
-        LinearLayout box = IosSheet.createActionGroup(this);
-        box.setPadding(ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 14),
-                ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 14));
-
-        TextView hexTv = new TextView(this);
-        hexTv.setText(hex);
-        hexTv.setTextColor(ThemeTokens.COLOR_SUCCESS);
-        hexTv.setTextSize(14);
-        hexTv.setTypeface(Typeface.MONOSPACE);
-        box.addView(hexTv);
-        sheet.addView(box);
-
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-        btnRow.setGravity(Gravity.END);
-        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        rlp.topMargin = ThemeTokens.dp(this, 16);
-        btnRow.setLayoutParams(rlp);
-
-        TextView btnClose = new TextView(this);
-        btnClose.setText("Đóng");
-        btnClose.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        btnClose.setTextSize(16);
-        btnClose.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10),
-                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10));
-        btnClose.setOnClickListener(v -> dialog.dismiss());
-        btnRow.addView(btnClose);
-
-        TextView btnCopy = new TextView(this);
-        btnCopy.setText("Sao chép mã");
-        btnCopy.setTextColor(Color.WHITE);
-        btnCopy.setTextSize(16);
-        btnCopy.setTypeface(Typeface.DEFAULT_BOLD);
-        btnCopy.setPadding(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 10),
-                ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 10));
-        GradientDrawable copyBg = new GradientDrawable();
-        copyBg.setCornerRadius(ThemeTokens.dp(this, 999));
-        copyBg.setColor(ThemeTokens.COLOR_ACCENT);
-        btnCopy.setBackground(copyBg);
-        btnCopy.setOnClickListener(v -> {
-            ClipboardManager cm = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
-            cm.setPrimaryClip(ClipData.newPlainText("SHA256", hex));
-            Toast.makeText(this, "Đã sao chép mã SHA-256 vào bộ nhớ tạm", Toast.LENGTH_SHORT).show();
-            dialog.dismiss();
-        });
-        btnRow.addView(btnCopy);
-        sheet.addView(btnRow);
-
-        IosSheet.show(dialog, sheet);
-    }
-
-    private void showEncryptToVaultSheet(File src) {
-        Dialog dialog = IosSheet.createBaseDialog(this);
-        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
-
-        TextView title = new TextView(this);
-        title.setText("Mã hóa vào Vault");
-        title.setTextSize(20);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        sheet.addView(title);
-
-        TextView sub = new TextView(this);
-        sub.setText("Bảo vệ '" + src.getName() + "' bằng AES-256-GCM");
-        sub.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        sub.setTextSize(13);
-        sheet.addView(sub);
-
-        EditText input = new EditText(this);
-        input.setHint("Nhập mật khẩu mã hóa");
-        input.setHintTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        input.setTextColor(ThemeTokens.COLOR_LABEL);
-        input.setInputType(android.text.InputType.TYPE_CLASS_TEXT | android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        input.setPadding(ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 12),
-                ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 12));
-
-        GradientDrawable inputBg = new GradientDrawable();
-        inputBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_INPUT_FIELD));
-        inputBg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
-        input.setBackground(inputBg);
-
-        LinearLayout.LayoutParams inLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        inLp.topMargin = ThemeTokens.dp(this, 16);
-        sheet.addView(input, inLp);
-
-        LinearLayout btnRow = new LinearLayout(this);
-        btnRow.setOrientation(LinearLayout.HORIZONTAL);
-        btnRow.setGravity(Gravity.END);
-        LinearLayout.LayoutParams rlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        rlp.topMargin = ThemeTokens.dp(this, 16);
-        btnRow.setLayoutParams(rlp);
-
-        TextView btnCancel = new TextView(this);
-        btnCancel.setText("Hủy");
-        btnCancel.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        btnCancel.setTextSize(16);
-        btnCancel.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10),
-                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 10));
-        btnCancel.setOnClickListener(v -> dialog.dismiss());
-        btnRow.addView(btnCancel);
-
-        TextView btnEnc = new TextView(this);
-        btnEnc.setText("Mã hóa");
-        btnEnc.setTextColor(Color.WHITE);
-        btnEnc.setTextSize(16);
-        btnEnc.setTypeface(Typeface.DEFAULT_BOLD);
-        btnEnc.setPadding(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 10),
-                ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 10));
-        GradientDrawable encBg = new GradientDrawable();
-        encBg.setCornerRadius(ThemeTokens.dp(this, 999));
-        encBg.setColor(ThemeTokens.COLOR_ACCENT);
-        btnEnc.setBackground(encBg);
-        btnEnc.setOnClickListener(v -> {
-            String pwd = input.getText().toString();
-            if (pwd.isEmpty()) {
-                Toast.makeText(this, "Vui lòng nhập mật khẩu", Toast.LENGTH_SHORT).show();
-                return;
-            }
-            dialog.dismiss();
-            new Thread(() -> {
-                try {
-                    File vaultDir = new File(getFilesDir(), "vault");
-                    vaultDir.mkdirs();
-                    File encFile = new File(vaultDir, src.getName() + ".vqr");
-                    VaultManager.encryptAesGcm(src, encFile, pwd);
-                    runOnUiThread(() -> Toast.makeText(this, "Đã mã hóa an toàn vào Vault!", Toast.LENGTH_SHORT).show());
-                } catch (Exception e) {
-                    runOnUiThread(() -> Toast.makeText(this, "Lỗi mã hóa: " + e.getMessage(), Toast.LENGTH_LONG).show());
-                }
-            }).start();
-        });
-        btnRow.addView(btnEnc);
-        sheet.addView(btnRow);
-
-        IosSheet.show(dialog, sheet, true);
     }
 
     private void showSortActionSheet() {
@@ -1030,6 +908,55 @@ public class MainActivity extends Activity {
         inLp.topMargin = ThemeTokens.dp(this, 16);
         sheet.addView(input, inLp);
 
+        HorizontalScrollView hScroll = new HorizontalScrollView(this);
+        hScroll.setHorizontalScrollBarEnabled(false);
+        LinearLayout.LayoutParams hslp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        hslp.topMargin = ThemeTokens.dp(this, 12);
+        hScroll.setLayoutParams(hslp);
+
+        LinearLayout chipsContainer = new LinearLayout(this);
+        chipsContainer.setOrientation(LinearLayout.HORIZONTAL);
+        hScroll.addView(chipsContainer);
+        sheet.addView(hScroll);
+
+        String[] filters = {"Tất cả", "Ảnh", "Video", "Tài liệu", "Kho nén", "Lớn >10MB"};
+        final String[] selectedFilter = {"Tất cả"};
+        final List<TextView> chipViews = new ArrayList<>();
+
+        for (String filter : filters) {
+            TextView chip = new TextView(this);
+            chip.setText(filter);
+            chip.setTextSize(13);
+            chip.setPadding(ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 6),
+                    ThemeTokens.dp(this, 14), ThemeTokens.dp(this, 6));
+
+            GradientDrawable chipBg = new GradientDrawable();
+            chipBg.setCornerRadius(ThemeTokens.dp(this, 999));
+            boolean isSel = filter.equals(selectedFilter[0]);
+            chipBg.setColor(isSel ? ThemeTokens.COLOR_ACCENT : ThemeTokens.COLOR_ACTION_GROUP_BG);
+            chip.setBackground(chipBg);
+            chip.setTextColor(isSel ? Color.WHITE : ThemeTokens.COLOR_SEC_LABEL);
+
+            LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            clp.rightMargin = ThemeTokens.dp(this, 8);
+            chip.setLayoutParams(clp);
+
+            chip.setOnClickListener(v -> {
+                selectedFilter[0] = filter;
+                for (int i = 0; i < filters.length; i++) {
+                    TextView cv = chipViews.get(i);
+                    boolean s = filters[i].equals(selectedFilter[0]);
+                    GradientDrawable bg = (GradientDrawable) cv.getBackground();
+                    bg.setColor(s ? ThemeTokens.COLOR_ACCENT : ThemeTokens.COLOR_ACTION_GROUP_BG);
+                    cv.setTextColor(s ? Color.WHITE : ThemeTokens.COLOR_SEC_LABEL);
+                }
+            });
+
+            chipViews.add(chip);
+            chipsContainer.addView(chip);
+        }
+
         LinearLayout btnRow = new LinearLayout(this);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
         btnRow.setGravity(Gravity.END);
@@ -1060,7 +987,7 @@ public class MainActivity extends Activity {
         btnSearch.setOnClickListener(v -> {
             String query = input.getText().toString().trim();
             dialog.dismiss();
-            if (!query.isEmpty()) performSearch(query);
+            performSearch(query, selectedFilter[0]);
         });
         btnRow.addView(btnSearch);
         sheet.addView(btnRow);
@@ -1069,13 +996,43 @@ public class MainActivity extends Activity {
         input.requestFocus();
     }
 
-    private void performSearch(String query) {
+    private void performSearch(String query, String filterType) {
         mIsSearchActive = true;
         mFileListGroup.removeAllViews();
-        List<File> matched = FileRepository.search(mCurrentDir, query, 100);
+        List<File> matched = FileRepository.search(mCurrentDir, query, 150);
 
-        if (matched.isEmpty()) {
-            showEmptyState("Không tìm thấy kết quả", "Không có tệp nào khớp với từ khóa \"" + query + "\".");
+        List<File> filtered = new ArrayList<>();
+        for (File f : matched) {
+            String name = f.getName().toLowerCase();
+            if ("Tất cả".equals(filterType)) {
+                filtered.add(f);
+            } else if ("Ảnh".equals(filterType)) {
+                if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") ||
+                    name.endsWith(".webp") || name.endsWith(".gif") || name.endsWith(".bmp")) {
+                    filtered.add(f);
+                }
+            } else if ("Video".equals(filterType)) {
+                if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov")) {
+                    filtered.add(f);
+                }
+            } else if ("Tài liệu".equals(filterType)) {
+                if (name.endsWith(".pdf") || name.endsWith(".txt") || name.endsWith(".doc") ||
+                    name.endsWith(".docx") || name.endsWith(".md") || name.endsWith(".json")) {
+                    filtered.add(f);
+                }
+            } else if ("Kho nén".equals(filterType)) {
+                if (ZipManager.isArchive(f)) {
+                    filtered.add(f);
+                }
+            } else if ("Lớn >10MB".equals(filterType)) {
+                if (f.length() >= 10L * 1024 * 1024) {
+                    filtered.add(f);
+                }
+            }
+        }
+
+        if (filtered.isEmpty()) {
+            showEmptyState("Không tìm thấy kết quả", "Không có tệp nào khớp với từ khóa \"" + query + "\" [" + filterType + "].");
             return;
         }
 
@@ -1084,9 +1041,9 @@ public class MainActivity extends Activity {
         groupBg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
         mFileListGroup.setBackground(groupBg);
 
-        for (int i = 0; i < matched.size(); i++) {
-            File f = matched.get(i);
-            boolean isLast = (i == matched.size() - 1);
+        for (int i = 0; i < filtered.size(); i++) {
+            File f = filtered.get(i);
+            boolean isLast = (i == filtered.size() - 1);
             View row = FileRowView.createRow(this, f, isLast, false, false, new FileRowView.OnFileRowClickListener() {
                 @Override
                 public void onClick(File clickedFile) {
@@ -1124,7 +1081,7 @@ public class MainActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
-        // Group 1
+        
         LinearLayout group1 = IosSheet.createActionGroup(this);
         group1.addView(IosSheet.createActionRow(this, R.drawable.ic_folder_plus, "Tạo thư mục mới", false, v -> {
             dialog.dismiss();
@@ -1163,7 +1120,7 @@ public class MainActivity extends Activity {
         }, false));
         sheet.addView(group1);
 
-        // Group 2: Paste clipboard or selection mode
+        
         LinearLayout group2 = IosSheet.createActionGroup(this);
         if (mClipboardFile != null && mClipboardFile.exists()) {
             String pasteLabel = (mIsCutAction ? "Di chuyển " : "Dán ") + "'" + mClipboardFile.getName() + "' vào đây";
@@ -1211,9 +1168,9 @@ public class MainActivity extends Activity {
         IosSheet.show(dialog, sheet);
     }
 
-    // ==========================================
-    // REAL FILE I/O OPERATIONS (OUTSIDE MAIN THREAD)
-    // ==========================================
+    
+    
+    
     private void openImageViewer(File f) {
         Intent intent = new Intent(this, ImageViewerActivity.class);
         intent.putExtra(ImageViewerActivity.EXTRA_PATH, f.getAbsolutePath());
@@ -1433,130 +1390,261 @@ public class MainActivity extends Activity {
         extractZipAsync(archiveFile, dest);
     }
 
-    private void computeSha256Async(File f) {
-        new Thread(() -> {
-            try {
-                String hex = HashUtils.computeSha256(f);
-                runOnUiThread(() -> showSha256Sheet(f, hex));
-            } catch (Exception e) {
-                runOnUiThread(() -> Toast.makeText(this, "Lỗi tính hash: " + e.getMessage(), Toast.LENGTH_SHORT).show());
-            }
-        }).start();
-    }
-
-    // ==========================================
-    // OTHER TABS (ARCHIVE, VAULT, HASH, SETTINGS)
-    // ==========================================
     private void showArchiveTab() {
         mFileListGroup.removeAllViews();
         mFileListGroup.setBackground(null);
 
-        LinearLayout card = IosSheet.createActionGroup(this);
-        card.setPadding(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20),
-                ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20));
+        LinearLayout headerCard = IosSheet.createActionGroup(this);
+        headerCard.setPadding(ThemeTokens.dp(this, 18), ThemeTokens.dp(this, 16),
+                ThemeTokens.dp(this, 18), ThemeTokens.dp(this, 16));
 
         TextView title = new TextView(this);
-        title.setText("Trình quản lý nén VELQOR PRO");
+        title.setText("Trình quản lý nén VELQOR");
         title.setTextSize(18);
         title.setTextColor(ThemeTokens.COLOR_LABEL);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        card.addView(title);
+        headerCard.addView(title);
 
         TextView info = new TextView(this);
-        info.setText("\n• Định dạng hỗ trợ: ZIP, TAR, TAR.GZ, TGZ, 7Z, RAR\n• Công nghệ chống Zip Slip bảo mật đường dẫn tuyệt đối\n• Nén & giải nén trực tiếp với luồng I/O độc lập ngoài main thread\n\nĐể nén hoặc giải nén tệp, hãy chạm vào tệp bất kỳ trong tab 'Tệp'.");
+        info.setText("Duyệt nội dung tệp nén ZIP, TAR, GZ trực tiếp không cần giải nén.");
         info.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        info.setTextSize(14);
-        card.addView(info);
+        info.setTextSize(13);
+        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        subLp.topMargin = ThemeTokens.dp(this, 4);
+        info.setLayoutParams(subLp);
+        headerCard.addView(info);
+        mFileListGroup.addView(headerCard);
 
-        mFileListGroup.addView(card);
+        LinearLayout listCard = IosSheet.createActionGroup(this);
+        LinearLayout.LayoutParams lclp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        lclp.topMargin = ThemeTokens.dp(this, 14);
+        listCard.setLayoutParams(lclp);
+
+        TextView loading = new TextView(this);
+        loading.setText("Đang tìm tệp nén trên thiết bị...");
+        loading.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        loading.setTextSize(14);
+        loading.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
+        listCard.addView(loading);
+        mFileListGroup.addView(listCard);
+
+        new Thread(() -> {
+            List<File> archives = new ArrayList<>();
+            File root = Environment.getExternalStorageDirectory();
+            scanArchives(root, archives, 30);
+            scanArchives(new File(root, "Download"), archives, 30);
+            scanArchives(new File(root, "Documents"), archives, 30);
+
+            Set<String> uniquePaths = new HashSet<>();
+            List<File> distinctArchives = new ArrayList<>();
+            for (File a : archives) {
+                if (uniquePaths.add(a.getAbsolutePath())) {
+                    distinctArchives.add(a);
+                }
+            }
+
+            runOnUiThread(() -> {
+                listCard.removeAllViews();
+                if (distinctArchives.isEmpty()) {
+                    TextView emptyTv = new TextView(this);
+                    emptyTv.setText("Chưa tìm thấy tệp nén nào trong máy.");
+                    emptyTv.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+                    emptyTv.setTextSize(14);
+                    emptyTv.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
+                            ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
+                    listCard.addView(emptyTv);
+                } else {
+                    for (int i = 0; i < distinctArchives.size(); i++) {
+                        File a = distinctArchives.get(i);
+                        boolean isLast = (i == distinctArchives.size() - 1);
+                        listCard.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive,
+                                a.getName() + " (" + FileRowView.formatSize(a.length()) + ")", false, v -> {
+                            showArchiveInspectorSheet(a);
+                        }, !isLast));
+                    }
+                }
+            });
+        }).start();
     }
 
-    private void showVaultTab() {
-        mFileListGroup.removeAllViews();
-        mFileListGroup.setBackground(null);
-
-        LinearLayout card = IosSheet.createActionGroup(this);
-        card.setPadding(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20),
-                ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20));
-
-        TextView title = new TextView(this);
-        title.setText("Kho bảo mật Vault (AES-256-GCM)");
-        title.setTextSize(18);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        card.addView(title);
-
-        File vaultDir = new File(getFilesDir(), "vault");
-        File[] vFiles = vaultDir.listFiles();
-        int count = (vFiles != null) ? vFiles.length : 0;
-
-        TextView info = new TextView(this);
-        info.setText("\n• Tiêu chuẩn mã hóa: AES/GCM/NoPadding 256-bit\n• Hàm suy biến khóa: PBKDF2WithHmacSHA256 (65,536 vòng lặp)\n• Hiện có: " + count + " tệp được bảo vệ an toàn\n\nChạm vào tệp trong tab 'Tệp' và chọn 'Mã hóa vào Vault' để đưa vào kho bảo mật.");
-        info.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        info.setTextSize(14);
-        card.addView(info);
-
-        mFileListGroup.addView(card);
+    private void scanArchives(File dir, List<File> result, int max) {
+        if (dir == null || !dir.exists() || result.size() >= max) return;
+        File[] files = dir.listFiles();
+        if (files == null) return;
+        for (File f : files) {
+            if (result.size() >= max) break;
+            if (f.isFile() && ZipManager.isArchive(f)) {
+                result.add(f);
+            }
+        }
     }
 
-    private void showHashTab() {
-        mFileListGroup.removeAllViews();
-        mFileListGroup.setBackground(null);
-
-        LinearLayout card = IosSheet.createActionGroup(this);
-        card.setPadding(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20),
-                ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20));
+    private void showArchiveInspectorSheet(File archiveFile) {
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
 
         TextView title = new TextView(this);
-        title.setText("Kiểm tra toàn vẹn mã băm (Hash)");
+        title.setText(archiveFile.getName());
         title.setTextSize(18);
         title.setTextColor(ThemeTokens.COLOR_LABEL);
         title.setTypeface(Typeface.DEFAULT_BOLD);
-        card.addView(title);
+        sheet.addView(title);
 
-        TextView info = new TextView(this);
-        info.setText("\n• Hỗ trợ tính toán mã băm SHA-256 nguyên bản\n• Buffer I/O 64KB tối ưu tốc độ đọc tệp lớn\n• Kết quả hiển thị tức thì với nút sao chép 1 chạm\n\nChạm vào tệp bất kỳ trong tab 'Tệp' và chọn 'Tính SHA-256' để kiểm tra checksum.");
-        info.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        info.setTextSize(14);
-        card.addView(info);
+        TextView sub = new TextView(this);
+        sub.setText("Kích thước: " + FileRowView.formatSize(archiveFile.length()) + " · Đang nạp danh mục...");
+        sub.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        sub.setTextSize(12);
+        sheet.addView(sub);
 
-        mFileListGroup.addView(card);
+        LinearLayout btnRow = new LinearLayout(this);
+        btnRow.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams brlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        brlp.topMargin = ThemeTokens.dp(this, 12);
+        btnRow.setLayoutParams(brlp);
+
+        TextView btnExtractAll = new TextView(this);
+        btnExtractAll.setText("Giải nén toàn bộ");
+        btnExtractAll.setTextColor(Color.WHITE);
+        btnExtractAll.setTextSize(14);
+        btnExtractAll.setTypeface(Typeface.DEFAULT_BOLD);
+        btnExtractAll.setGravity(Gravity.CENTER);
+        btnExtractAll.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(ThemeTokens.dp(this, 999));
+        bg.setColor(ThemeTokens.COLOR_ACCENT);
+        btnExtractAll.setBackground(bg);
+        btnExtractAll.setOnClickListener(v -> {
+            dialog.dismiss();
+            extractZipAsync(archiveFile, mCurrentDir);
+        });
+        btnRow.addView(btnExtractAll);
+        sheet.addView(btnRow);
+
+        ScrollView sv = new ScrollView(this);
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 320));
+        svLp.topMargin = ThemeTokens.dp(this, 12);
+        sv.setLayoutParams(svLp);
+
+        LinearLayout entriesCard = IosSheet.createActionGroup(this);
+        sv.addView(entriesCard);
+        sheet.addView(sv);
+
+        new Thread(() -> {
+            try {
+                List<ZipManager.ArchiveEntryInfo> list = ZipManager.listZipEntries(archiveFile);
+                runOnUiThread(() -> {
+                    sub.setText("Tổng cộng " + list.size() + " mục bên trong tệp nén");
+                    entriesCard.removeAllViews();
+                    for (int i = 0; i < list.size(); i++) {
+                        ZipManager.ArchiveEntryInfo entry = list.get(i);
+                        boolean isLast = (i == list.size() - 1);
+                        int icon = entry.isDirectory ? R.drawable.ic_folder : R.drawable.ic_file_doc;
+                        String label = entry.name + (entry.isDirectory ? "" : " (" + FileRowView.formatSize(entry.size) + ")");
+                        entriesCard.addView(IosSheet.createActionRow(this, icon, label, false, v -> {
+                            if (!entry.isDirectory) {
+                                IosSheet.showConfirmDialog(this, "Giải nén tệp", "Bạn có muốn trích xuất '" + entry.name + "' ra thư mục hiện tại không?", "Giải nén", () -> {
+                                    File destFile = new File(mCurrentDir, new File(entry.name).getName());
+                                    new Thread(() -> {
+                                        try {
+                                            boolean ok = ZipManager.extractSingleZipEntry(archiveFile, entry.name, destFile);
+                                            runOnUiThread(() -> {
+                                                if (ok) {
+                                                    Toast.makeText(this, "Đã trích xuất: " + destFile.getName(), Toast.LENGTH_SHORT).show();
+                                                    refreshDirectory();
+                                                } else {
+                                                    Toast.makeText(this, "Không thể trích xuất tệp", Toast.LENGTH_SHORT).show();
+                                                }
+                                            });
+                                        } catch (Exception ex) {
+                                            runOnUiThread(() -> Toast.makeText(this, "Lỗi trích xuất: " + ex.getMessage(), Toast.LENGTH_SHORT).show());
+                                        }
+                                    }).start();
+                                });
+                            }
+                        }, !isLast));
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> sub.setText("Không thể đọc danh mục: " + e.getMessage()));
+            }
+        }).start();
+
+        IosSheet.show(dialog, sheet);
     }
 
     private void showSettingsTab() {
         mFileListGroup.removeAllViews();
         mFileListGroup.setBackground(null);
 
-        LinearLayout card = IosSheet.createActionGroup(this);
-        card.setPadding(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20),
-                ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 20));
+        SharedPreferences prefs = getSharedPreferences("velqor_prefs", MODE_PRIVATE);
+        String themeMode = prefs.getString("theme_mode", "dark");
+        int accentColor = ThemeTokens.getAccentColor(this);
 
-        TextView title = new TextView(this);
-        title.setText("Cài đặt VELQOR");
-        title.setTextSize(18);
-        title.setTextColor(ThemeTokens.COLOR_LABEL);
-        title.setTypeface(Typeface.DEFAULT_BOLD);
-        card.addView(title);
+        LinearLayout cardTheme = IosSheet.createActionGroup(this);
+        cardTheme.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
 
-        TextView info = new TextView(this);
-        info.setText("\n• Phiên bản: VELQOR v2.0.7 (Build 9)\n• Thiết kế: Giao diện Liquid Glass Cupertino chuẩn Apple\n• Quyền bộ nhớ: MANAGE_EXTERNAL_STORAGE đã cấp\n• Động cơ xử lý: Pure Android SDK + Coroutines Flow\n• Nhà phát triển: Google DeepMind Pair Programming");
-        info.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        info.setTextSize(14);
-        card.addView(info);
+        String modeText = "dark".equals(themeMode) ? "Tối (Dark)" : ("light".equals(themeMode) ? "Sáng (Light)" : "Tự động");
+        cardTheme.addView(IosSheet.createActionRow(this, R.drawable.ic_eye, "Chế độ giao diện: " + modeText, false, v -> {
+            String nextMode = "dark".equals(themeMode) ? "light" : ("light".equals(themeMode) ? "auto" : "dark");
+            prefs.edit().putString("theme_mode", nextMode).apply();
+            showSettingsTab();
+        }, true));
 
-        mFileListGroup.addView(card);
+        cardTheme.addView(IosSheet.createActionRow(this, R.drawable.ic_star, "Màu nhấn Apple Liquid", false, v -> {
+            showAccentPickerSheet();
+        }, true));
 
-        // Thumbnail Settings Card
-        android.content.SharedPreferences prefs = getSharedPreferences("velqor_editor_prefs", MODE_PRIVATE);
-        boolean showThumbs = prefs.getBoolean("show_thumbnails", true);
+        cardTheme.addView(IosSheet.createActionRow(this, mIsGridMode ? R.drawable.ic_view_list : R.drawable.ic_view_grid,
+                "Chế độ hiển thị mặc định: " + (mIsGridMode ? "Lưới (Grid)" : "Danh sách (List)"), false, v -> {
+            mIsGridMode = !mIsGridMode;
+            prefs.edit().putBoolean("grid_mode", mIsGridMode).apply();
+            mHeaderView.setViewMode(mIsGridMode);
+            showSettingsTab();
+        }, false));
+        mFileListGroup.addView(cardTheme);
+
+        LinearLayout cardStorage = IosSheet.createActionGroup(this);
+        LinearLayout.LayoutParams cslp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        cslp.topMargin = ThemeTokens.dp(this, 14);
+        cardStorage.setLayoutParams(cslp);
+        cardStorage.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
+
+        long trashBytes = TrashManager.getTrashSize(this);
+        int trashCount = TrashManager.listTrashItems(this).size();
+        cardStorage.addView(IosSheet.createActionRow(this, R.drawable.ic_delete,
+                "Thùng rác (" + trashCount + " mục · " + FileRowView.formatSize(trashBytes) + ")", false, v -> {
+            showTrashSheet();
+        }, true));
+
+        cardStorage.addView(IosSheet.createActionRow(this, R.drawable.ic_info,
+                "Dashboard dung lượng & Biểu đồ Donut", false, v -> {
+            showStorageDashboardSheet();
+        }, false));
+        mFileListGroup.addView(cardStorage);
+
+        SharedPreferences editorPrefs = getSharedPreferences("velqor_editor_prefs", MODE_PRIVATE);
+        boolean showThumbs = editorPrefs.getBoolean("show_thumbnails", true);
 
         LinearLayout cardThumb = IosSheet.createActionGroup(this);
-        cardThumb.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12),
-                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12));
+        LinearLayout.LayoutParams ctlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        ctlp.topMargin = ThemeTokens.dp(this, 14);
+        cardThumb.setLayoutParams(ctlp);
+        cardThumb.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
 
         cardThumb.addView(IosSheet.createActionRow(this, R.drawable.ic_file_image,
                 "Hiện thumbnail: " + (showThumbs ? "Bật" : "Tắt"), false, v -> {
-            prefs.edit().putBoolean("show_thumbnails", !showThumbs).apply();
+            editorPrefs.edit().putBoolean("show_thumbnails", !showThumbs).apply();
             showSettingsTab();
         }, true));
 
@@ -1567,8 +1655,281 @@ public class MainActivity extends Activity {
             Toast.makeText(this, "Đã xóa sạch bộ nhớ đệm thumbnail", Toast.LENGTH_SHORT).show();
             showSettingsTab();
         }, false));
-
         mFileListGroup.addView(cardThumb);
+
+        LinearLayout cardAbout = IosSheet.createActionGroup(this);
+        LinearLayout.LayoutParams calp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        calp.topMargin = ThemeTokens.dp(this, 14);
+        cardAbout.setLayoutParams(calp);
+        cardAbout.setPadding(ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 16),
+                ThemeTokens.dp(this, 20), ThemeTokens.dp(this, 16));
+
+        TextView tvAboutTitle = new TextView(this);
+        tvAboutTitle.setText("VELQOR PRO");
+        tvAboutTitle.setTextSize(18);
+        tvAboutTitle.setTextColor(ThemeTokens.COLOR_LABEL);
+        tvAboutTitle.setTypeface(Typeface.DEFAULT_BOLD);
+        cardAbout.addView(tvAboutTitle);
+
+        TextView tvAboutInfo = new TextView(this);
+        tvAboutInfo.setText("\n• Phiên bản: v2.1.0 (Build 15)\n• Thiết kế: Apple iOS Liquid Glass Cupertino Native\n• Công nghệ: Java 17 + Android View AOSP Native (0 thư viện ngoài)\n• Bản quyền: Google DeepMind Pair Programming");
+        tvAboutInfo.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        tvAboutInfo.setTextSize(13);
+        tvAboutInfo.setLineSpacing(ThemeTokens.dp(this, 3), 1f);
+        cardAbout.addView(tvAboutInfo);
+        mFileListGroup.addView(cardAbout);
+    }
+
+    private void showAccentPickerSheet() {
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Chọn màu nhấn Apple");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        LinearLayout card = IosSheet.createActionGroup(this);
+        int[] accents = {
+                ThemeTokens.ACCENT_BLUE,
+                ThemeTokens.ACCENT_INDIGO,
+                ThemeTokens.ACCENT_PURPLE,
+                ThemeTokens.ACCENT_ORANGE,
+                ThemeTokens.ACCENT_MINT,
+                ThemeTokens.ACCENT_RED,
+                ThemeTokens.ACCENT_GREEN
+        };
+        String[] names = {
+                "Apple Blue",
+                "Cupertino Indigo",
+                "Deep Purple",
+                "Vibrant Orange",
+                "Mint Cyan",
+                "Imperial Red",
+                "Emerald Green"
+        };
+
+        int cur = ThemeTokens.getAccentColor(this);
+        for (int i = 0; i < accents.length; i++) {
+            final int c = accents[i];
+            boolean isChosen = (cur == c);
+            boolean isLast = (i == accents.length - 1);
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(ThemeTokens.dp(this, 16), 0, ThemeTokens.dp(this, 16), 0);
+            row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 48)));
+
+            View dot = new View(this);
+            GradientDrawable d = new GradientDrawable();
+            d.setShape(GradientDrawable.OVAL);
+            d.setColor(c);
+            dot.setBackground(d);
+            int dotSize = ThemeTokens.dp(this, 16);
+            LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(dotSize, dotSize);
+            dlp.rightMargin = ThemeTokens.dp(this, 12);
+            row.addView(dot, dlp);
+
+            TextView tv = new TextView(this);
+            tv.setText(names[i]);
+            tv.setTextSize(16);
+            tv.setTextColor(isChosen ? c : ThemeTokens.COLOR_LABEL);
+            tv.setTypeface(isChosen ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            row.addView(tv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            if (isChosen) {
+                ImageView check = new ImageView(this);
+                check.setImageResource(R.drawable.ic_check);
+                check.setColorFilter(c);
+                int checkSz = ThemeTokens.dp(this, 18);
+                row.addView(check, new LinearLayout.LayoutParams(checkSz, checkSz));
+            }
+
+            row.setOnClickListener(v -> {
+                dialog.dismiss();
+                getSharedPreferences("velqor_prefs", MODE_PRIVATE).edit().putInt("accent_color", c).apply();
+                showSettingsTab();
+            });
+
+            card.addView(row);
+            if (!isLast) {
+                View div = new View(this);
+                div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+                card.addView(div, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 1)));
+            }
+        }
+        sheet.addView(card);
+        IosSheet.show(dialog, sheet);
+    }
+
+    private void showTrashSheet() {
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Thùng rác VELQOR");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        List<TrashManager.TrashItem> items = TrashManager.listTrashItems(this);
+        TextView sub = new TextView(this);
+        sub.setText("Tổng cộng " + items.size() + " mục · " + FileRowView.formatSize(TrashManager.getTrashSize(this)));
+        sub.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        sub.setTextSize(13);
+        sheet.addView(sub);
+
+        if (!items.isEmpty()) {
+            LinearLayout btnRow = new LinearLayout(this);
+            btnRow.setOrientation(LinearLayout.HORIZONTAL);
+            LinearLayout.LayoutParams brlp = new LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+            brlp.topMargin = ThemeTokens.dp(this, 12);
+            btnRow.setLayoutParams(brlp);
+
+            TextView btnEmpty = new TextView(this);
+            btnEmpty.setText("Dọn sạch thùng rác");
+            btnEmpty.setTextColor(Color.WHITE);
+            btnEmpty.setTextSize(14);
+            btnEmpty.setTypeface(Typeface.DEFAULT_BOLD);
+            btnEmpty.setGravity(Gravity.CENTER);
+            btnEmpty.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8),
+                    ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
+            GradientDrawable ebg = new GradientDrawable();
+            ebg.setCornerRadius(ThemeTokens.dp(this, 999));
+            ebg.setColor(ThemeTokens.COLOR_DANGER);
+            btnEmpty.setBackground(ebg);
+            btnEmpty.setOnClickListener(v -> {
+                IosSheet.showConfirmDialog(this, "Xác nhận xóa sạch", "Tất cả các tệp trong thùng rác sẽ bị xóa vĩnh viễn?", "Xóa sạch", () -> {
+                    dialog.dismiss();
+                    TrashManager.emptyTrash(this);
+                    Toast.makeText(this, "Đã dọn sạch thùng rác", Toast.LENGTH_SHORT).show();
+                    showSettingsTab();
+                });
+            });
+            btnRow.addView(btnEmpty);
+            sheet.addView(btnRow);
+        }
+
+        ScrollView sv = new ScrollView(this);
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 300));
+        svLp.topMargin = ThemeTokens.dp(this, 12);
+        sv.setLayoutParams(svLp);
+
+        LinearLayout card = IosSheet.createActionGroup(this);
+        if (items.isEmpty()) {
+            TextView empty = new TextView(this);
+            empty.setText("Thùng rác đang rỗng.");
+            empty.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+            empty.setTextSize(14);
+            empty.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
+                    ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
+            card.addView(empty);
+        } else {
+            for (int i = 0; i < items.size(); i++) {
+                TrashManager.TrashItem item = items.get(i);
+                boolean isLast = (i == items.size() - 1);
+                card.addView(IosSheet.createActionRow(this, R.drawable.ic_file_doc,
+                        item.originalName + " (" + FileRowView.formatSize(item.size) + ")", false, v -> {
+                    IosSheet.showConfirmDialog(this, "Khôi phục tệp", "Khôi phục '" + item.originalName + "' về thư mục hiện tại?", "Khôi phục", () -> {
+                        dialog.dismiss();
+                        TrashManager.restoreItem(item, mCurrentDir);
+                        Toast.makeText(this, "Đã khôi phục: " + item.originalName, Toast.LENGTH_SHORT).show();
+                        showSettingsTab();
+                    });
+                }, !isLast));
+            }
+        }
+        sv.addView(card);
+        sheet.addView(sv);
+
+        IosSheet.show(dialog, sheet);
+    }
+
+    private void showStorageDashboardSheet() {
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Dashboard dung lượng");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        TextView sub = new TextView(this);
+        sub.setText("Đang phân tích cấu trúc bộ nhớ...");
+        sub.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        sub.setTextSize(13);
+        sheet.addView(sub);
+
+        DonutChartView donut = new DonutChartView(this);
+        LinearLayout.LayoutParams dlp = new LinearLayout.LayoutParams(
+                ThemeTokens.dp(this, 180), ThemeTokens.dp(this, 180));
+        dlp.gravity = Gravity.CENTER_HORIZONTAL;
+        dlp.topMargin = ThemeTokens.dp(this, 14);
+        donut.setLayoutParams(dlp);
+        sheet.addView(donut);
+
+        ScrollView sv = new ScrollView(this);
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 220));
+        svLp.topMargin = ThemeTokens.dp(this, 12);
+        sv.setLayoutParams(svLp);
+
+        LinearLayout cardDetails = IosSheet.createActionGroup(this);
+        sv.addView(cardDetails);
+        sheet.addView(sv);
+
+        new Thread(() -> {
+            StorageScanner.StorageBreakdown b = StorageScanner.scanStorage(mCurrentDir, 500);
+            runOnUiThread(() -> {
+                long total = b.totalBytes;
+                long used = b.usedBytes;
+                int percent = (total > 0) ? (int) ((used * 100) / total) : 0;
+                sub.setText(FileRowView.formatSize(used) + " đã dùng / " + FileRowView.formatSize(total));
+
+                List<DonutChartView.Segment> segs = new ArrayList<>();
+                segs.add(new DonutChartView.Segment("Ảnh", b.imagesBytes, ThemeTokens.COLOR_ICON_IMAGE));
+                segs.add(new DonutChartView.Segment("Video", b.videosBytes, ThemeTokens.COLOR_ICON_VIDEO));
+                segs.add(new DonutChartView.Segment("Nhạc", b.audioBytes, ThemeTokens.COLOR_ICON_AUDIO));
+                segs.add(new DonutChartView.Segment("Tài liệu", b.docsBytes, ThemeTokens.COLOR_ICON_DOCUMENT));
+                segs.add(new DonutChartView.Segment("APK", b.apksBytes, ThemeTokens.COLOR_ICON_APK));
+                segs.add(new DonutChartView.Segment("Kho nén", b.archivesBytes, ThemeTokens.COLOR_ICON_ARCHIVE));
+                segs.add(new DonutChartView.Segment("Khác", b.otherBytes, ThemeTokens.COLOR_ICON_OTHER));
+                donut.setData(segs, total, percent + "%", "Đã dùng");
+
+                cardDetails.removeAllViews();
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_file_image,
+                        "Ảnh: " + FileRowView.formatSize(b.imagesBytes), false, null, true));
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_file_video,
+                        "Video: " + FileRowView.formatSize(b.videosBytes), false, null, true));
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_file_audio,
+                        "Âm nhạc: " + FileRowView.formatSize(b.audioBytes), false, null, true));
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_file_doc,
+                        "Tài liệu: " + FileRowView.formatSize(b.docsBytes), false, null, true));
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_file_apk,
+                        "File cài APK: " + FileRowView.formatSize(b.apksBytes), false, null, true));
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive,
+                        "Tệp nén: " + FileRowView.formatSize(b.archivesBytes), false, null, true));
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_info,
+                        "Tệp lớn >50MB (" + b.largeFiles.size() + " tệp)", false, v -> {
+                    Toast.makeText(this, "Có " + b.largeFiles.size() + " tệp lớn hơn 50MB", Toast.LENGTH_SHORT).show();
+                }, true));
+                cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_copy,
+                        "Tệp trùng lặp (" + b.duplicateGroups.size() + " nhóm)", false, v -> {
+                    Toast.makeText(this, "Có " + b.duplicateGroups.size() + " nhóm tệp trùng lặp", Toast.LENGTH_SHORT).show();
+                }, false));
+            });
+        }).start();
+
+        IosSheet.show(dialog, sheet);
     }
 
     private void checkAndRequestPermissions() {
@@ -1613,20 +1974,20 @@ public class MainActivity extends Activity {
     }
 
     private boolean handleBackNavigation() {
-        // 1. Exit Selection Mode if active
+        
         if (mIsSelectionMode) {
             exitSelectionMode();
             return true;
         }
 
-        // 2. Exit Search Mode if active
+        
         if (mIsSearchActive) {
             mIsSearchActive = false;
             refreshDirectory();
             return true;
         }
 
-        // 3. Switch to "Tệp" tab if in another tab
+        
         if (!"files".equals(mCurrentTab)) {
             mCurrentTab = "files";
             if (mFloatingTabBar != null) {
@@ -1636,7 +1997,7 @@ public class MainActivity extends Activity {
             return true;
         }
 
-        // 4. In "Tệp" tab: if inside a subfolder, navigate up to parent directory
+        
         if (mCurrentDir != null && !isStorageRoot(mCurrentDir)) {
             File parent = mCurrentDir.getParentFile();
             if (parent != null && parent.canRead()) {
@@ -1649,7 +2010,7 @@ public class MainActivity extends Activity {
             }
         }
 
-        // 5. At root: double-back within 2 seconds to exit app
+        
         long now = System.currentTimeMillis();
         if (now - mLastBackPressTime < 2000) {
             return false;

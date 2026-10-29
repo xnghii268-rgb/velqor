@@ -2,8 +2,6 @@
     <string name="app_name">VELQOR</string>
     <string name="tab_browser">Tệp</string>
     <string name="tab_archive">Nén &amp; Giải nén</string>
-    <string name="tab_vault">Kho bảo mật</string>
-    <string name="tab_tasks">Tác vụ</string>
     <string name="tab_settings">Cài đặt</string>
 
     <string name="permission_storage_title">Quyền Quản lý Tệp tin</string>

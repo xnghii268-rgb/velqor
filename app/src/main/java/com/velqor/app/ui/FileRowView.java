@@ -6,8 +6,10 @@ import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.view.Gravity;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -43,22 +45,22 @@ public class FileRowView extends LinearLayout {
         row.setGravity(Gravity.CENTER_VERTICAL);
         row.setMinimumHeight(ThemeTokens.dp(ctx, 56));
 
+        int accentColor = ThemeTokens.getAccentColor(ctx);
         if (isSelected) {
-            row.setBackgroundColor(0x1F0A84FF);
+            row.setBackgroundColor((accentColor & 0x00FFFFFF) | 0x22000000);
         }
 
-        // Selection Checkbox
         if (isSelectionMode) {
             ImageView check = new ImageView(ctx);
             check.setImageResource(R.drawable.ic_check);
             GradientDrawable checkBg = new GradientDrawable();
             checkBg.setShape(GradientDrawable.OVAL);
             if (isSelected) {
-                checkBg.setColor(ThemeTokens.COLOR_ACCENT);
+                checkBg.setColor(accentColor);
                 check.setColorFilter(Color.WHITE);
             } else {
                 checkBg.setColor(Color.TRANSPARENT);
-                checkBg.setStroke(ThemeTokens.dp(ctx, 2), ThemeTokens.COLOR_SEPARATOR);
+                checkBg.setStroke(ThemeTokens.dp(ctx, 2), ThemeTokens.getSeparatorColor(ctx));
                 check.setColorFilter(Color.TRANSPARENT);
             }
             check.setBackground(checkBg);
@@ -72,16 +74,12 @@ public class FileRowView extends LinearLayout {
             row.addView(check);
         }
 
-        // 40x40dp Icon in 10dp rounded box with semantic color tint (alpha 0.18, contrast >= 3:1)
         int iconRes = getIconResourceForFile(f);
         int tintColor = getSemanticColorForFile(f);
         String nameLower = f.getName().toLowerCase();
         boolean isApk = nameLower.endsWith(".apk");
-        boolean isMedia = nameLower.endsWith(".jpg") || nameLower.endsWith(".jpeg") || nameLower.endsWith(".png") ||
-                          nameLower.endsWith(".webp") || nameLower.endsWith(".mp4") || nameLower.endsWith(".mkv") ||
-                          nameLower.endsWith(".mov") || nameLower.endsWith(".avi");
 
-        android.widget.FrameLayout iconBox = new android.widget.FrameLayout(ctx);
+        FrameLayout iconBox = new FrameLayout(ctx);
         int boxSize = ThemeTokens.dp(ctx, ThemeTokens.SIZE_ICON_BOX);
         iconBox.setLayoutParams(new LinearLayout.LayoutParams(boxSize, boxSize));
 
@@ -98,26 +96,24 @@ public class FileRowView extends LinearLayout {
         iv.setColorFilter(tintColor);
 
         int insideSize = ThemeTokens.dp(ctx, isApk ? 32 : ThemeTokens.SIZE_ICON_INSIDE);
-        android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(insideSize, insideSize);
+        FrameLayout.LayoutParams ivLp = new FrameLayout.LayoutParams(insideSize, insideSize);
         ivLp.gravity = Gravity.CENTER;
         iv.setLayoutParams(ivLp);
         iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
         iconBox.addView(iv);
 
-        // Thumbnail Loader integration (if enabled in preferences)
         boolean showThumbs = ctx.getSharedPreferences("velqor_editor_prefs", Context.MODE_PRIVATE)
                 .getBoolean("show_thumbnails", true);
         if (showThumbs && !f.isDirectory()) {
             ThumbnailLoader.getInstance(ctx).loadThumbnail(f, iv);
         }
 
-        // Small play badge overlay for videos
         if (nameLower.endsWith(".mp4") || nameLower.endsWith(".mkv") || nameLower.endsWith(".avi") || nameLower.endsWith(".mov")) {
             ImageView playIcon = new ImageView(ctx);
-            playIcon.setImageResource(R.drawable.ic_chevron_right); // Play-like vector
+            playIcon.setImageResource(R.drawable.ic_chevron_right);
             playIcon.setColorFilter(Color.WHITE);
             int pSize = ThemeTokens.dp(ctx, 12);
-            android.widget.FrameLayout.LayoutParams playLp = new android.widget.FrameLayout.LayoutParams(pSize, pSize);
+            FrameLayout.LayoutParams playLp = new FrameLayout.LayoutParams(pSize, pSize);
             playLp.gravity = Gravity.BOTTOM | Gravity.END;
             playLp.rightMargin = ThemeTokens.dp(ctx, 3);
             playLp.bottomMargin = ThemeTokens.dp(ctx, 3);
@@ -127,7 +123,6 @@ public class FileRowView extends LinearLayout {
 
         row.addView(iconBox);
 
-        // Title and Subtitle Info
         LinearLayout textCol = new LinearLayout(ctx);
         textCol.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
@@ -135,7 +130,7 @@ public class FileRowView extends LinearLayout {
 
         TextView nameText = new TextView(ctx);
         nameText.setText(middleEllipsis(f.getName(), 34));
-        nameText.setTextColor(ThemeTokens.COLOR_LABEL);
+        nameText.setTextColor(ThemeTokens.getLabelColor(ctx));
         nameText.setTextSize(17);
         nameText.setTypeface(Typeface.DEFAULT);
         nameText.setSingleLine(true);
@@ -154,7 +149,7 @@ public class FileRowView extends LinearLayout {
             subtitle = formatSize(f.length()) + " · " + formatItemDate(f.lastModified());
         }
         subText.setText(subtitle);
-        subText.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        subText.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
         subText.setTextSize(13);
         LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -164,18 +159,18 @@ public class FileRowView extends LinearLayout {
 
         row.addView(textCol, colLp);
 
-        // Right chevron for folders
         if (f.isDirectory() && !isSelectionMode) {
             ImageView chevron = new ImageView(ctx);
             chevron.setImageResource(R.drawable.ic_chevron_right);
-            chevron.setColorFilter(ThemeTokens.COLOR_SEC_LABEL);
+            chevron.setColorFilter(ThemeTokens.getSecondaryLabelColor(ctx));
             chevron.setAlpha(0.4f);
             int chevSize = ThemeTokens.dp(ctx, 16);
             chevron.setLayoutParams(new LinearLayout.LayoutParams(chevSize, chevSize));
             row.addView(chevron);
         }
 
-        // Tap & Long-Press Interactions
+        attachTapSpringEffect(row);
+
         row.setOnClickListener(v -> {
             if (listener != null) listener.onClick(f);
         });
@@ -187,10 +182,9 @@ public class FileRowView extends LinearLayout {
 
         rowContainer.addView(row);
 
-        // Inset Separator: 0.5dp line, inset from text start (68dp), omitted on last item
         if (!isLast) {
             View sep = new View(ctx);
-            sep.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+            sep.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(ctx));
             int divH = Math.max(1, ThemeTokens.dp(ctx, 1) / 2);
             LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, divH);
             sepLp.leftMargin = ThemeTokens.dp(ctx, isSelectionMode ? 102 : 68);
@@ -199,6 +193,166 @@ public class FileRowView extends LinearLayout {
         }
 
         return rowContainer;
+    }
+
+    public static View createGridCard(Context ctx, File f, boolean isSelected, boolean isSelectionMode, OnFileRowClickListener listener) {
+        LinearLayout card = new LinearLayout(ctx);
+        card.setOrientation(LinearLayout.VERTICAL);
+        card.setGravity(Gravity.CENTER_HORIZONTAL);
+        card.setPadding(ThemeTokens.dp(ctx, 12), ThemeTokens.dp(ctx, 14),
+                ThemeTokens.dp(ctx, 12), ThemeTokens.dp(ctx, 12));
+
+        GradientDrawable cardBg = new GradientDrawable();
+        cardBg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_GROUP_LIST));
+        int accentColor = ThemeTokens.getAccentColor(ctx);
+        if (isSelected) {
+            cardBg.setColor((accentColor & 0x00FFFFFF) | 0x28000000);
+            cardBg.setStroke(ThemeTokens.dp(ctx, 1), accentColor);
+        } else {
+            cardBg.setColor(ThemeTokens.getActionGroupBgColor(ctx));
+            cardBg.setStroke(ThemeTokens.dp(ctx, 1), 0x1AFFFFFF);
+        }
+        card.setBackground(cardBg);
+
+        int iconRes = getIconResourceForFile(f);
+        int tintColor = getSemanticColorForFile(f);
+        String nameLower = f.getName().toLowerCase();
+        boolean isApk = nameLower.endsWith(".apk");
+
+        FrameLayout iconBox = new FrameLayout(ctx);
+        int boxSize = ThemeTokens.dp(ctx, 52);
+        iconBox.setLayoutParams(new LinearLayout.LayoutParams(boxSize, boxSize));
+
+        GradientDrawable iconBoxBg = new GradientDrawable();
+        iconBoxBg.setCornerRadius(ThemeTokens.dp(ctx, 14));
+        iconBoxBg.setColor(isApk ? 0x15FFFFFF : ((tintColor & 0x00FFFFFF) | 0x2E000000));
+        iconBox.setBackground(iconBoxBg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            iconBox.setClipToOutline(true);
+        }
+
+        ImageView iv = new ImageView(ctx);
+        iv.setImageResource(iconRes);
+        iv.setColorFilter(tintColor);
+
+        int insideSize = ThemeTokens.dp(ctx, isApk ? 40 : 28);
+        FrameLayout.LayoutParams ivLp = new FrameLayout.LayoutParams(insideSize, insideSize);
+        ivLp.gravity = Gravity.CENTER;
+        iv.setLayoutParams(ivLp);
+        iv.setScaleType(ImageView.ScaleType.FIT_CENTER);
+        iconBox.addView(iv);
+
+        boolean showThumbs = ctx.getSharedPreferences("velqor_editor_prefs", Context.MODE_PRIVATE)
+                .getBoolean("show_thumbnails", true);
+        if (showThumbs && !f.isDirectory()) {
+            ThumbnailLoader.getInstance(ctx).loadThumbnail(f, iv);
+        }
+
+        card.addView(iconBox);
+
+        TextView nameText = new TextView(ctx);
+        nameText.setText(middleEllipsis(f.getName(), 20));
+        nameText.setTextColor(ThemeTokens.getLabelColor(ctx));
+        nameText.setTextSize(14);
+        nameText.setGravity(Gravity.CENTER);
+        nameText.setSingleLine(true);
+        LinearLayout.LayoutParams nlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        nlp.topMargin = ThemeTokens.dp(ctx, 8);
+        card.addView(nameText, nlp);
+
+        TextView subText = new TextView(ctx);
+        String subtitle;
+        if (f.isDirectory()) {
+            int childCount = 0;
+            try {
+                String[] list = f.list();
+                if (list != null) childCount = list.length;
+            } catch (Exception ignored) {}
+            subtitle = childCount + " mục";
+        } else {
+            subtitle = formatSize(f.length());
+        }
+        subText.setText(subtitle);
+        subText.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
+        subText.setTextSize(11);
+        subText.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = ThemeTokens.dp(ctx, 2);
+        card.addView(subText, slp);
+
+        attachTapSpringEffect(card);
+
+        card.setOnClickListener(v -> {
+            if (listener != null) listener.onClick(f);
+        });
+
+        card.setOnLongClickListener(v -> {
+            if (listener != null) listener.onLongClick(f);
+            return true;
+        });
+
+        return card;
+    }
+
+    public static View createSkeletonRow(Context ctx) {
+        LinearLayout row = new LinearLayout(ctx);
+        row.setOrientation(LinearLayout.HORIZONTAL);
+        row.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 10),
+                ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 10));
+        row.setGravity(Gravity.CENTER_VERTICAL);
+
+        View box = new View(ctx);
+        int bSize = ThemeTokens.dp(ctx, ThemeTokens.SIZE_ICON_BOX);
+        box.setLayoutParams(new LinearLayout.LayoutParams(bSize, bSize));
+        GradientDrawable boxBg = new GradientDrawable();
+        boxBg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_ICON_BOX));
+        boxBg.setColor(0x1AFFFFFF);
+        box.setBackground(boxBg);
+        row.addView(box);
+
+        LinearLayout textCol = new LinearLayout(ctx);
+        textCol.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
+        colLp.leftMargin = ThemeTokens.dp(ctx, 12);
+
+        View line1 = new View(ctx);
+        LinearLayout.LayoutParams l1Lp = new LinearLayout.LayoutParams(ThemeTokens.dp(ctx, 140), ThemeTokens.dp(ctx, 14));
+        line1.setLayoutParams(l1Lp);
+        GradientDrawable l1Bg = new GradientDrawable();
+        l1Bg.setCornerRadius(ThemeTokens.dp(ctx, 4));
+        l1Bg.setColor(0x1AFFFFFF);
+        line1.setBackground(l1Bg);
+        textCol.addView(line1);
+
+        View line2 = new View(ctx);
+        LinearLayout.LayoutParams l2Lp = new LinearLayout.LayoutParams(ThemeTokens.dp(ctx, 80), ThemeTokens.dp(ctx, 10));
+        l2Lp.topMargin = ThemeTokens.dp(ctx, 6);
+        line2.setLayoutParams(l2Lp);
+        GradientDrawable l2Bg = new GradientDrawable();
+        l2Bg.setCornerRadius(ThemeTokens.dp(ctx, 3));
+        l2Bg.setColor(0x10FFFFFF);
+        line2.setBackground(l2Bg);
+        textCol.addView(line2);
+
+        row.addView(textCol, colLp);
+        return row;
+    }
+
+    private static void attachTapSpringEffect(View v) {
+        v.setOnTouchListener((view, event) -> {
+            switch (event.getAction()) {
+                case MotionEvent.ACTION_DOWN:
+                    view.animate().scaleX(0.97f).scaleY(0.97f).setDuration(80).start();
+                    break;
+                case MotionEvent.ACTION_UP:
+                case MotionEvent.ACTION_CANCEL:
+                    view.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start();
+                    break;
+            }
+            return false;
+        });
     }
 
     public static int getIconResourceForFile(File f) {
@@ -238,10 +392,10 @@ public class FileRowView extends LinearLayout {
         if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov")) return ThemeTokens.COLOR_ICON_VIDEO;
         if (name.endsWith(".mp3") || name.endsWith(".flac") || name.endsWith(".wav") || name.endsWith(".ogg") || name.endsWith(".m4a")) return ThemeTokens.COLOR_ICON_AUDIO;
         if (name.endsWith(".apk")) return ThemeTokens.COLOR_ICON_APK;
-        if (isCodeFile(name)) return 0xFF5AC8FA; // Soft Cyan code accent
-        if (isPlainTextFile(name)) return 0xFF8E8E93; // Muted Silver text
-        if (name.endsWith(".pdf")) return 0xFFFF453A; // PDF Red
-        if (name.endsWith(".doc") || name.endsWith(".docx")) return 0xFF0A84FF; // Word Blue
+        if (isCodeFile(name)) return 0xFF5AC8FA;
+        if (isPlainTextFile(name)) return 0xFF8E8E93;
+        if (name.endsWith(".pdf")) return 0xFFFF453A;
+        if (name.endsWith(".doc") || name.endsWith(".docx")) return 0xFF0A84FF;
         return ThemeTokens.COLOR_ICON_DOCUMENT;
     }
 

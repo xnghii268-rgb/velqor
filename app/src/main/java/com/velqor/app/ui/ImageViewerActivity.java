@@ -58,7 +58,7 @@ public class ImageViewerActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        // Edge-to-edge true fullscreen
+        
         setupEdgeToEdge();
 
         String path = getIntent().getStringExtra(EXTRA_PATH);
@@ -76,13 +76,13 @@ public class ImageViewerActivity extends Activity {
         mImageView = new TouchImageView(this);
         mRoot.addView(mImageView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // Top Bar
+        
         mTopBar = createTopBar();
         FrameLayout.LayoutParams topLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         topLp.gravity = Gravity.TOP;
         mRoot.addView(mTopBar, topLp);
 
-        // Bottom Bar
+        
         mBottomBar = createBottomBar();
         FrameLayout.LayoutParams botLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         botLp.gravity = Gravity.BOTTOM;
@@ -145,12 +145,12 @@ public class ImageViewerActivity extends Activity {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         int padTop = getStatusBarHeight() + ThemeTokens.dp(this, 8);
         bar.setPadding(ThemeTokens.dp(this, 16), padTop, ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12));
-        bar.setBackgroundColor(0xCC000000); // 80% black frosted
+        bar.setBackgroundColor(0xCC000000); 
 
-        // Back Button
+        
         ImageView btnBack = new ImageView(this);
         btnBack.setImageResource(R.drawable.ic_chevron_right);
-        btnBack.setRotation(180); // Back arrow
+        btnBack.setRotation(180); 
         btnBack.setColorFilter(Color.WHITE);
         int btnSize = ThemeTokens.dp(this, 28);
         btnBack.setLayoutParams(new LinearLayout.LayoutParams(btnSize, btnSize));
@@ -188,21 +188,21 @@ public class ImageViewerActivity extends Activity {
         bar.setPadding(ThemeTokens.dp(this, 24), ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 24), padBot);
         bar.setBackgroundColor(0xCC000000);
 
-        // Share
+        
         ImageView btnShare = createBarBtn(R.drawable.ic_share, v -> shareCurrent());
         bar.addView(btnShare);
 
         View space1 = new View(this);
         bar.addView(space1, new LinearLayout.LayoutParams(0, 1, 1f));
 
-        // Details
+        
         ImageView btnInfo = createBarBtn(R.drawable.ic_info, v -> showDetails());
         bar.addView(btnInfo);
 
         View space2 = new View(this);
         bar.addView(space2, new LinearLayout.LayoutParams(0, 1, 1f));
 
-        // Delete
+        
         ImageView btnDel = createBarBtn(R.drawable.ic_delete, v -> confirmDelete());
         btnDel.setColorFilter(ThemeTokens.COLOR_DANGER);
         bar.addView(btnDel);
@@ -262,7 +262,7 @@ public class ImageViewerActivity extends Activity {
         Bitmap bitmap = BitmapFactory.decodeFile(path, options);
         if (bitmap == null) return null;
 
-        // Apply EXIF Orientation
+        
         try {
             ExifInterface exif = new ExifInterface(path);
             int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);
@@ -345,9 +345,9 @@ public class ImageViewerActivity extends Activity {
         return resId > 0 ? getResources().getDimensionPixelSize(resId) : ThemeTokens.dp(this, 16);
     }
 
-    // ==========================================
-    // TOUCH IMAGE VIEW (PINCH, PAN, DOUBLE TAP, DISMISS)
-    // ==========================================
+    
+    
+    
     private class TouchImageView extends View {
         private Bitmap mBitmap;
         private final Matrix mMatrix = new Matrix();
@@ -407,13 +407,13 @@ public class ImageViewerActivity extends Activity {
                         float dx = e2.getX() - e1.getX();
                         float dy = e2.getY() - e1.getY();
 
-                        // Swipe down to dismiss
+                        
                         if (dy > 200 && Math.abs(dy) > Math.abs(dx) * 1.5) {
                             finish();
                             return true;
                         }
 
-                        // Swipe left/right for next/previous image
+                        
                         if (Math.abs(dx) > 150 && Math.abs(dx) > Math.abs(dy)) {
                             if (dx < 0 && mCurrentIndex < mSiblingImages.size() - 1) {
                                 mCurrentIndex++;
@@ -472,7 +472,7 @@ public class ImageViewerActivity extends Activity {
             mScaleDetector.onTouchEvent(event);
             mGestureDetector.onTouchEvent(event);
 
-            // Handle Pan drag when zoomed in
+            
             if (mScale > 1.05f) {
                 switch (event.getActionMasked()) {
                     case MotionEvent.ACTION_DOWN:

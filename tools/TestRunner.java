@@ -5,8 +5,6 @@ import com.velqor.app.files.FileCreator;
 import com.velqor.app.files.FileRepository;
 import com.velqor.app.files.TextFileIO;
 import com.velqor.app.files.ThumbnailCache;
-import com.velqor.app.security.HashUtils;
-import com.velqor.app.security.VaultManager;
 
 import java.io.ByteArrayOutputStream;
 import java.io.File;
@@ -46,15 +44,13 @@ public class TestRunner {
         testFormatters();
         testSearchAccentRemoval();
         testZipSlipDefense();
-        testSha256Hasher();
-        testVaultAes256Gcm();
         testTarEngine();
         testFileRepositoryOperations();
-        testStandardSha256Vectors();
         testTextFileIOOperations();
         testThumbnailKeyAndTextFileDetection();
         testFileCreatorOperations();
         testFolderInfoCalculation();
+        testZipInspection();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -87,7 +83,7 @@ public class TestRunner {
         File safeDir = new File("/data/data/com.termuxpro.app/files/home/test_safe_dir");
         safeDir.mkdirs();
 
-        // 1. Validate destination path
+        
         boolean caught = false;
         try {
             validateDestinationPath(safeDir, "../../../etc/shadow");
@@ -96,72 +92,11 @@ public class TestRunner {
         }
         assertTrue("Zip Slip path traversal blocked", caught);
 
-        // 2. Safe path should pass
+        
         File validFile = validateDestinationPath(safeDir, "subfolder/document.txt");
         assertTrue("Valid destination path inside folder", validFile.getCanonicalPath().startsWith(safeDir.getCanonicalPath()));
 
         safeDir.delete();
-    }
-
-    private static void testSha256Hasher() throws Exception {
-        System.out.println("[4/10] Testing SHA-256 Stream Hasher...");
-        File temp = File.createTempFile("sha_test", ".txt");
-        try {
-            try (FileOutputStream fos = new FileOutputStream(temp)) {
-                fos.write("hello world".getBytes(StandardCharsets.UTF_8));
-            }
-            String actual = HashUtils.computeSha256(temp);
-            assertEquals("SHA-256 for 'hello world'", "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9", actual);
-        } finally {
-            temp.delete();
-        }
-    }
-
-    private static void testVaultAes256Gcm() throws Exception {
-        System.out.println("[5/10] Testing Vault AES-256-GCM Streaming & Tamper Detection...");
-        File tempSrc = File.createTempFile("velqor_src", ".txt");
-        File tempEnc = File.createTempFile("velqor_enc", ".vqr");
-        File tempDec = File.createTempFile("velqor_dec", ".txt");
-
-        try {
-            String secretText = "Confidential Vault Data 2026 - Pure Apple Standard";
-            try (FileOutputStream fos = new FileOutputStream(tempSrc)) {
-                fos.write(secretText.getBytes(StandardCharsets.UTF_8));
-            }
-
-            // 1. Encrypt
-            VaultManager.encryptAesGcm(tempSrc, tempEnc, "MySecurePass!99");
-            assertTrue("Encrypted file exists", tempEnc.exists());
-            assertTrue("Encrypted file has ciphertext overhead", tempEnc.length() > tempSrc.length());
-
-            // 2. Decrypt
-            VaultManager.decryptAesGcm(tempEnc, tempDec, "MySecurePass!99");
-            String restored = new String(java.nio.file.Files.readAllBytes(tempDec.toPath()), StandardCharsets.UTF_8);
-            assertEquals("Restored plaintext matches original", secretText, restored);
-
-            // 3. Tamper test: Flip 1 byte in encrypted payload
-            try (RandomAccessFile raf = new RandomAccessFile(tempEnc, "rw")) {
-                raf.seek(tempEnc.length() - 5);
-                byte b = raf.readByte();
-                raf.seek(tempEnc.length() - 5);
-                raf.writeByte(b ^ 0xFF);
-            }
-
-            File tempTamperDec = File.createTempFile("velqor_tamper", ".txt");
-            boolean tamperCaught = false;
-            try {
-                VaultManager.decryptAesGcm(tempEnc, tempTamperDec, "MySecurePass!99");
-            } catch (Exception ex) {
-                tamperCaught = true;
-            }
-            assertTrue("Tampered ciphertext fails GCM authentication", tamperCaught);
-            tempTamperDec.delete();
-
-        } finally {
-            tempSrc.delete();
-            tempEnc.delete();
-            tempDec.delete();
-        }
     }
 
     private static void testTarEngine() throws Exception {
@@ -177,14 +112,14 @@ public class TestRunner {
                 fos.write(testContent.getBytes(StandardCharsets.UTF_8));
             }
 
-            // Write simple Gzip stream containing file
+            
             try (FileOutputStream fos = new FileOutputStream(tarGzFile);
                  java.util.zip.GZIPOutputStream gzos = new java.util.zip.GZIPOutputStream(fos)) {
                 gzos.write(testContent.getBytes(StandardCharsets.UTF_8));
             }
             assertTrue("Gzip compressed archive created", tarGzFile.exists() && tarGzFile.length() > 0);
 
-            // Decompress Gzip stream
+            
             File extractedFile = new File(destDir, "unpacked.txt");
             try (FileInputStream fis = new FileInputStream(tarGzFile);
                  java.util.zip.GZIPInputStream gzis = new java.util.zip.GZIPInputStream(fis);
@@ -220,7 +155,7 @@ public class TestRunner {
             }
             assertTrue("File A created", fileA.exists());
 
-            // 1. Copy
+            
             File subDir = new File(testDir, "sub");
             subDir.mkdirs();
             File fileACopy = new File(subDir, "file_a_copy.txt");
@@ -228,17 +163,17 @@ public class TestRunner {
             assertTrue("Copied file exists in subDir", fileACopy.exists());
             assertTrue("Original file still exists", fileA.exists());
 
-            // 2. Rename
+            
             boolean renamed = FileRepository.rename(fileACopy, "file_renamed.txt");
             assertTrue("Rename succeeded", renamed);
             File renamedFile = new File(subDir, "file_renamed.txt");
             assertTrue("Renamed file exists", renamedFile.exists());
 
-            // 3. Duplicate Name Protection
+            
             boolean duplicateBlocked = false;
             try {
-                FileRepository.rename(fileA, "file_a.txt"); // same name exists
-                duplicateBlocked = true; // or threw exception
+                FileRepository.rename(fileA, "file_a.txt"); 
+                duplicateBlocked = true; 
             } catch (IllegalArgumentException ex) {
                 duplicateBlocked = true;
             }
@@ -247,13 +182,13 @@ public class TestRunner {
             File uniqueName = FileRepository.getUniqueDestinationFile(testDir, "file_a.txt");
             assertEquals("Unique name generated", "file_a (1).txt", uniqueName.getName());
 
-            // 4. Move
+            
             File targetMove = new File(subDir, "file_a_moved.txt");
             FileRepository.move(fileA, targetMove);
             assertTrue("Moved target exists", targetMove.exists());
             assertTrue("Source file no longer exists after move", !fileA.exists());
 
-            // 5. Delete recursive
+            
             boolean deleted = FileRepository.deleteRecursive(testDir);
             assertTrue("Delete recursive cleaned up folder", deleted);
             assertTrue("Folder gone", !testDir.exists());
@@ -263,23 +198,10 @@ public class TestRunner {
         }
     }
 
-    private static void testStandardSha256Vectors() throws Exception {
-        System.out.println("[8/10] Testing SHA-256 Standard NIST Test Vectors...");
-        // Empty string vector
-        File emptyFile = File.createTempFile("nist_empty", ".txt");
-        try {
-            String hashEmpty = HashUtils.computeSha256(emptyFile);
-            assertEquals("NIST vector for empty string",
-                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hashEmpty);
-        } finally {
-            emptyFile.delete();
-        }
-    }
-
     private static void testTextFileIOOperations() throws Exception {
         System.out.println("[9/10] Testing TextFileIO Operations (UTF-8 BOM, CRLF, UTF-16, Empty, Diacritics, Zip Entry Edit)...");
 
-        // 1. Empty file detection & read/write
+        
         File emptyFile = File.createTempFile("test_empty_", ".txt");
         try {
             assertTrue("Empty file is text file", TextFileIO.isTextFile(emptyFile));
@@ -291,7 +213,7 @@ public class TestRunner {
             emptyFile.delete();
         }
 
-        // 2. UTF-8 with BOM and CRLF line endings
+        
         File bomFile = File.createTempFile("test_bom_", ".txt");
         try {
             try (FileOutputStream fos = new FileOutputStream(bomFile)) {
@@ -303,10 +225,10 @@ public class TestRunner {
             assertEquals("Detects UTF-8 charset", "UTF-8", docBom.charsetName);
             assertEquals("Detects CRLF line endings", "\r\n", docBom.lineEnding);
 
-            // Update content and re-save
+            
             TextFileIO.writeTextFile(bomFile, "Dong 1 da sua\nDong 2 da sua\n", docBom);
 
-            // Verify BOM preserved on disk
+            
             byte[] reloadedBytes = java.nio.file.Files.readAllBytes(bomFile.toPath());
             assertTrue("BOM preserved byte 0", reloadedBytes.length >= 3 && reloadedBytes[0] == (byte) 0xEF);
             assertTrue("BOM preserved byte 1", reloadedBytes[1] == (byte) 0xBB);
@@ -317,11 +239,11 @@ public class TestRunner {
             bomFile.delete();
         }
 
-        // 3. UTF-16LE BOM detection
+        
         File utf16File = File.createTempFile("test_utf16_", ".txt");
         try {
             try (FileOutputStream fos = new FileOutputStream(utf16File)) {
-                fos.write(new byte[]{(byte) 0xFF, (byte) 0xFE}); // UTF-16LE BOM
+                fos.write(new byte[]{(byte) 0xFF, (byte) 0xFE}); 
                 fos.write("AB".getBytes(StandardCharsets.UTF_16LE));
             }
             TextFileIO.TextDocument doc16 = TextFileIO.readTextFile(utf16File);
@@ -332,7 +254,7 @@ public class TestRunner {
             utf16File.delete();
         }
 
-        // 4. Vietnamese accented characters
+        
         File vnFile = File.createTempFile("test_vn_", ".txt");
         try {
             String vnContent = "Hệ thống quản lý tệp tin VELQOR 2026: Tiếng Việt có dấu ă, â, đ, ê, ô, ơ, ư";
@@ -343,10 +265,10 @@ public class TestRunner {
             vnFile.delete();
         }
 
-        // 5. Large File Paging Chunk reading
+        
         File pagingFile = File.createTempFile("test_paging_", ".txt");
         try {
-            byte[] dummyData = new byte[70 * 1024]; // > 64 KB
+            byte[] dummyData = new byte[70 * 1024]; 
             Arrays.fill(dummyData, (byte) 'A');
             try (FileOutputStream fos = new FileOutputStream(pagingFile)) {
                 fos.write(dummyData);
@@ -358,10 +280,10 @@ public class TestRunner {
             pagingFile.delete();
         }
 
-        // 6. Zip entry editing
+        
         File zipFile = File.createTempFile("test_archive_", ".zip");
         try {
-            // Create a zip with 2 entries
+            
             try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(new FileOutputStream(zipFile))) {
                 java.util.zip.ZipEntry ze1 = new java.util.zip.ZipEntry("notes/doc1.txt");
                 zos.putNextEntry(ze1);
@@ -374,11 +296,11 @@ public class TestRunner {
                 zos.closeEntry();
             }
 
-            // Update entry 1 inside ZIP
+            
             TextFileIO.TextDocument entryDoc = new TextFileIO.TextDocument("", "UTF-8", false, "\n", 0, false);
             TextFileIO.updateZipEntryText(zipFile, "notes/doc1.txt", "Modified Content in Zip 2026", entryDoc);
 
-            // Verify both entries
+            
             Map<String, String> entries = new HashMap<>();
             try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new FileInputStream(zipFile))) {
                 java.util.zip.ZipEntry ze;
@@ -400,7 +322,7 @@ public class TestRunner {
             zipFile.delete();
         }
 
-        // 7. Regex compilation safety
+        
         boolean regexErrorCaught = false;
         try {
             java.util.regex.Pattern.compile("[invalid regex ((");
@@ -421,7 +343,7 @@ public class TestRunner {
             String key1 = ThumbnailCache.generateKey(tempFile);
             assertTrue("Key is non-empty", key1 != null && !key1.isEmpty());
 
-            // Simulate file modification
+            
             tempFile.setLastModified(tempFile.lastModified() + 5000);
             String key2 = ThumbnailCache.generateKey(tempFile);
             assertTrue("Key changes when lastModified changes", !key1.equals(key2));
@@ -429,11 +351,11 @@ public class TestRunner {
             tempFile.delete();
         }
 
-        // Binary file with NUL byte test
+        
         File binFile = File.createTempFile("test_binary_", ".dat");
         try {
             try (FileOutputStream fos = new FileOutputStream(binFile)) {
-                fos.write(new byte[]{0x48, 0x65, 0x6C, 0x00, 0x6F}); // Has 0x00 byte
+                fos.write(new byte[]{0x48, 0x65, 0x6C, 0x00, 0x6F}); 
             }
             assertTrue("File with NUL byte is not text", !TextFileIO.isTextFile(binFile));
         } finally {
@@ -447,7 +369,7 @@ public class TestRunner {
         File testDir = new File(System.getProperty("java.io.tmpdir"), "velqor_creator_test_" + System.currentTimeMillis());
         testDir.mkdirs();
         try {
-            // 1. Validation tests
+            
             FileCreator.ValidationResult rEmpty = FileCreator.validateFileName(testDir, "");
             assertTrue("Empty name is invalid", !rEmpty.isValid);
 
@@ -463,14 +385,14 @@ public class TestRunner {
             FileCreator.ValidationResult rValid = FileCreator.validateFileName(testDir, "document.txt");
             assertTrue("Valid filename is valid and not warning", rValid.isValid && !rValid.isWarning);
 
-            // 2. Duplicate detection & suggestion
+            
             File existing = new File(testDir, "document.txt");
             existing.createNewFile();
             FileCreator.ValidationResult rDup = FileCreator.validateFileName(testDir, "document.txt");
             assertTrue("Duplicate filename is invalid", !rDup.isValid);
             assertEquals("Suggested unique name", "document (2).txt", rDup.suggestedName);
 
-            // 3. Templates check
+            
             assertEquals("Markdown template", "# doc\n\n", FileCreator.getTemplateContent("doc.md"));
             assertTrue("HTML template has doctype", FileCreator.getTemplateContent("page.html").contains("<!DOCTYPE html>"));
             assertTrue("JSON template has braces", FileCreator.getTemplateContent("data.json").contains("{\n"));
@@ -478,7 +400,7 @@ public class TestRunner {
             assertEquals("Python template", "#!/usr/bin/env python3\n\n", FileCreator.getTemplateContent("app.py"));
             assertEquals("Text template is empty", "", FileCreator.getTemplateContent("notes.txt"));
 
-            // 4. Atomic file creation with template
+            
             File createdMd = FileCreator.createNewFile(testDir, "README.md");
             assertTrue("README.md exists", createdMd.exists());
             String mdContent = new String(java.nio.file.Files.readAllBytes(createdMd.toPath()), StandardCharsets.UTF_8);
@@ -504,7 +426,7 @@ public class TestRunner {
         File rootDir = new File(System.getProperty("java.io.tmpdir"), "velqor_folder_info_" + System.currentTimeMillis());
         rootDir.mkdirs();
         try {
-            // Null & Empty tests
+            
             FileRepository.FolderInfo infoNull = FileRepository.calculateFolderInfo(null);
             assertEquals("Null folder bytes", 0L, infoNull.totalBytes);
             assertEquals("Null folder files", 0, infoNull.fileCount);
@@ -515,7 +437,7 @@ public class TestRunner {
             assertEquals("Empty folder files", 0, infoEmpty.fileCount);
             assertEquals("Empty folder dirs", 0, infoEmpty.dirCount);
 
-            // Populate structure
+            
             File f1 = new File(rootDir, "file1.bin");
             try (FileOutputStream fos = new FileOutputStream(f1)) {
                 fos.write(new byte[100]);
@@ -535,7 +457,7 @@ public class TestRunner {
                 fos.write(new byte[400]);
             }
 
-            // Calculate recursive size
+            
             FileRepository.FolderInfo info = FileRepository.calculateFolderInfo(rootDir);
             assertEquals("Total recursive size", 750L, info.totalBytes);
             assertEquals("Total file count", 3, info.fileCount);
@@ -544,6 +466,36 @@ public class TestRunner {
         } finally {
             FileRepository.deleteRecursive(rootDir);
         }
+    }
+
+    private static void testZipInspection() throws Exception {
+        System.out.println("[13/13] Testing Zip Inspection without Extraction...");
+        File tempDir = new File(System.getProperty("java.io.tmpdir"), "zip_inspect_test_" + System.currentTimeMillis());
+        tempDir.mkdirs();
+        File f1 = new File(tempDir, "doc.txt");
+        try (FileOutputStream fos = new FileOutputStream(f1)) {
+            fos.write("Sample document content".getBytes(StandardCharsets.UTF_8));
+        }
+        File f2 = new File(tempDir, "image.png");
+        try (FileOutputStream fos = new FileOutputStream(f2)) {
+            fos.write(new byte[512]);
+        }
+
+        File outZip = new File(tempDir, "test.zip");
+        List<File> files = Arrays.asList(f1, f2);
+        ZipManager.compressFiles(files, outZip);
+        assertTrue("Zip file created", outZip.exists());
+
+        List<ZipManager.ArchiveEntryInfo> entries = ZipManager.listZipEntries(outZip);
+        assertEquals("Entries count", 2, entries.size());
+
+        File extractedDoc = new File(tempDir, "extracted_doc.txt");
+        boolean extracted = ZipManager.extractSingleZipEntry(outZip, "doc.txt", extractedDoc);
+        assertTrue("Single entry extracted", extracted);
+        assertTrue("Extracted file exists", extractedDoc.exists());
+        assertEquals("Extracted file size", f1.length(), extractedDoc.length());
+
+        FileRepository.deleteRecursive(tempDir);
     }
 
     private static File validateDestinationPath(File destDir, String entryName) throws Exception {

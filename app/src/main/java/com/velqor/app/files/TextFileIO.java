@@ -11,9 +11,9 @@ import java.util.zip.ZipOutputStream;
 public final class TextFileIO {
     private TextFileIO() {}
 
-    public static final long LARGE_FILE_THRESHOLD = 10L * 1024 * 1024; // 10 MB
-    public static final long WARN_FILE_THRESHOLD = 1L * 1024 * 1024;   // 1 MB
-    public static final int PAGING_CHUNK_SIZE = 64 * 1024;             // 64 KB per page
+    public static final long LARGE_FILE_THRESHOLD = 10L * 1024 * 1024; 
+    public static final long WARN_FILE_THRESHOLD = 1L * 1024 * 1024;   
+    public static final int PAGING_CHUNK_SIZE = 64 * 1024;             
 
     private static final Set<String> TEXT_EXTENSIONS = new HashSet<>(Arrays.asList(
             "txt", "md", "json", "xml", "html", "htm", "css", "js", "java", "kt", "sh",
@@ -25,7 +25,7 @@ public final class TextFileIO {
         public String content;
         public String charsetName;
         public boolean hasBom;
-        public String lineEnding; // "\r\n" or "\n"
+        public String lineEnding; 
         public long fileSize;
         public boolean isReadOnlyPaging;
         public int pageIndex;
@@ -52,13 +52,13 @@ public final class TextFileIO {
             if (TEXT_EXTENSIONS.contains(ext)) return true;
         }
 
-        // Byte detection: inspect up to 8 KB for NUL bytes
+        
         try (FileInputStream fis = new FileInputStream(f)) {
             byte[] buf = new byte[8192];
             int r = fis.read(buf);
-            if (r <= 0) return true; // Empty file is editable text
+            if (r <= 0) return true; 
             for (int i = 0; i < r; i++) {
-                if (buf[i] == 0x00) return false; // Contains NUL byte -> binary file
+                if (buf[i] == 0x00) return false; 
             }
             return true;
         } catch (Exception e) {
@@ -107,7 +107,7 @@ public final class TextFileIO {
         boolean hasBom = false;
         int dataStart = 0;
 
-        // Detect BOM
+        
         if (rawBytes.length >= 3 && rawBytes[0] == (byte) 0xEF && rawBytes[1] == (byte) 0xBB && rawBytes[2] == (byte) 0xBF) {
             charsetName = "UTF-8";
             hasBom = true;
@@ -121,7 +121,7 @@ public final class TextFileIO {
             hasBom = true;
             dataStart = 2;
         } else {
-            // Check if valid UTF-8
+            
             if (!isValidUtf8(rawBytes)) {
                 charsetName = "Windows-1252";
             }
@@ -137,7 +137,7 @@ public final class TextFileIO {
 
         String content = new String(rawBytes, dataStart, rawBytes.length - dataStart, cs);
 
-        // Detect line ending (\r\n or \n)
+        
         String lineEnding = content.contains("\r\n") ? "\r\n" : "\n";
 
         return new TextDocument(content, charsetName, hasBom, lineEnding, totalFileSize, isPaging);
@@ -170,10 +170,10 @@ public final class TextFileIO {
         File parent = f.getParentFile();
         if (parent != null && !parent.exists()) parent.mkdirs();
 
-        // Atomic save: write to temporary file then rename
+        
         File tempFile = new File(parent, f.getName() + ".tmp_velqor_" + System.currentTimeMillis());
 
-        // Prepare line endings
+        
         String lineEnding = (doc != null && doc.lineEnding != null) ? doc.lineEnding : "\n";
         String normalizedText = text.replace("\r\n", "\n");
         if ("\r\n".equals(lineEnding)) {
@@ -189,7 +189,7 @@ public final class TextFileIO {
         }
 
         try (FileOutputStream fos = new FileOutputStream(tempFile)) {
-            // Write BOM if preserved
+            
             if (doc != null && doc.hasBom) {
                 if ("UTF-8".equalsIgnoreCase(charsetName)) {
                     fos.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF});
@@ -205,9 +205,9 @@ public final class TextFileIO {
             fos.flush();
         }
 
-        // Rename atomic replacement
+        
         if (!tempFile.renameTo(f)) {
-            // Fallback: Copy and delete
+            
             FileRepository.copy(tempFile, f);
             tempFile.delete();
         }
@@ -220,7 +220,7 @@ public final class TextFileIO {
 
         File tempZip = new File(zipFile.getParentFile(), zipFile.getName() + ".tmp_update_" + System.currentTimeMillis());
 
-        // Normalize text content and encoding
+        
         String lineEnding = (doc != null && doc.lineEnding != null) ? doc.lineEnding : "\n";
         String normalizedText = newContent.replace("\r\n", "\n");
         if ("\r\n".equals(lineEnding)) {
@@ -271,7 +271,7 @@ public final class TextFileIO {
             }
 
             if (!updated) {
-                // If entry was not in zip, append it
+                
                 ZipEntry newEntry = new ZipEntry(entryPath);
                 zos.putNextEntry(newEntry);
                 zos.write(finalEntryPayload);
@@ -279,7 +279,7 @@ public final class TextFileIO {
             }
         }
 
-        // Verify tempZip is readable before atomic swap
+        
         try (ZipInputStream verifyZis = new ZipInputStream(new FileInputStream(tempZip))) {
             while (verifyZis.getNextEntry() != null) {
                 verifyZis.closeEntry();
@@ -289,7 +289,7 @@ public final class TextFileIO {
             throw new IOException("Tệp ZIP cập nhật không toàn vẹn! Giữ nguyên tệp gốc.");
         }
 
-        // Atomic swap
+        
         if (!tempZip.renameTo(zipFile)) {
             FileRepository.copy(tempZip, zipFile);
             tempZip.delete();

@@ -54,14 +54,14 @@ public final class ThumbnailLoader {
         String key = ThumbnailCache.generateKey(file);
         targetView.setTag(key);
 
-        // Fast memory/disk cache check
+        
         Bitmap cached = mCache.get(key);
         if (cached != null) {
             applyThumbnailToView(file, targetView, cached);
             return;
         }
 
-        // Asynchronous decode
+        
         mExecutor.execute(() -> {
             Bitmap result = null;
             try {
@@ -85,7 +85,7 @@ public final class ThumbnailLoader {
             if (finalBitmap != null) {
                 mCache.put(key, finalBitmap);
                 mMainHandler.post(() -> {
-                    // Check tag to avoid race conditions when views are recycled
+                    
                     if (key.equals(targetView.getTag())) {
                         applyThumbnailToView(file, targetView, finalBitmap);
                         AlphaAnimation anim = new AlphaAnimation(0.2f, 1.0f);
@@ -179,7 +179,7 @@ public final class ThumbnailLoader {
             Bitmap bm = BitmapFactory.decodeFile(file.getAbsolutePath(), opts);
             if (bm == null) return null;
 
-            // Correct EXIF orientation
+            
             try {
                 ExifInterface exif = new ExifInterface(file.getAbsolutePath());
                 int orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL);

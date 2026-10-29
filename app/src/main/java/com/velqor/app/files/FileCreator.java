@@ -86,7 +86,7 @@ public final class FileCreator {
             String candidate = baseName + " (" + count + ")" + extension;
             File target = new File(parentDir, candidate);
             if (!target.exists()) {
-                // Check case-insensitive
+                
                 boolean existsCaseInsensitive = false;
                 if (parentDir != null && parentDir.exists()) {
                     File[] existing = parentDir.listFiles();
@@ -126,11 +126,11 @@ public final class FileCreator {
             throw new IOException("Tệp đã tồn tại: " + targetFile.getName());
         }
 
-        // Determine template content
+        
         String template = getTemplateContent(targetFile.getName());
         byte[] contentBytes = template.getBytes(StandardCharsets.UTF_8);
 
-        // Atomic creation via temporary file
+        
         File tempFile = new File(parentDir, targetFile.getName() + ".tmp_create_" + System.currentTimeMillis());
         try {
             try (FileOutputStream fos = new FileOutputStream(tempFile)) {
@@ -141,7 +141,7 @@ public final class FileCreator {
             }
 
             if (!tempFile.renameTo(targetFile)) {
-                // Fallback copy then delete temp
+                
                 FileRepository.copy(tempFile, targetFile);
                 tempFile.delete();
             }

@@ -11,6 +11,8 @@ import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.Editable;
 import android.text.InputType;
 import android.text.Layout;
@@ -23,6 +25,8 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.webkit.WebSettings;
+import android.webkit.WebView;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.HorizontalScrollView;
@@ -61,14 +65,14 @@ public class TextEditorActivity extends Activity {
     private float mFontSizeSp = 14f;
     private boolean mIsWrapEnabled = true;
 
-    // Search Options
+    
     private boolean mMatchCase = false;
     private boolean mUseRegex = false;
     private boolean mIsReplaceExpanded = false;
     private final List<int[]> mSearchResults = new ArrayList<>();
     private int mCurrentSearchIndex = -1;
 
-    // Views
+    
     private LinearLayout mRootLayout;
     private TextView mTitleText;
     private TextView mMetaText;
@@ -78,7 +82,7 @@ public class TextEditorActivity extends Activity {
     private ScrollView mVScroll;
     private HorizontalScrollView mHScroll;
 
-    // Search Bar Views
+    
     private LinearLayout mSearchBar;
     private EditText mSearchInput;
     private TextView mSearchCountText;
@@ -88,10 +92,16 @@ public class TextEditorActivity extends Activity {
     private TextView mChipCase;
     private TextView mChipRegex;
 
-    // Undo / Redo Stacks
+    
     private final Deque<String> mUndoStack = new ArrayDeque<>();
     private final Deque<String> mRedoStack = new ArrayDeque<>();
     private boolean mIsUndoOrRedo = false;
+    private final Handler mHighlightHandler = new Handler(Looper.getMainLooper());
+    private final Runnable mHighlightRunnable = () -> {
+        if (mEditor != null && mEditor.getText() != null) {
+            SyntaxHighlighter.highlight(mEditor.getText(), mFile != null ? mFile.getName() : "");
+        }
+    };
 
     private SharedPreferences mPrefs;
     private ScaleGestureDetector mScaleDetector;
@@ -117,7 +127,7 @@ public class TextEditorActivity extends Activity {
             return;
         }
 
-        // Determine default wrap for this file extension
+        
         String ext = getFileExtension();
         boolean defaultWrap = getDefaultWordWrap(mFile != null ? mFile.getName() : "");
         mIsWrapEnabled = mPrefs.getBoolean("wrap_" + ext, defaultWrap);
@@ -138,7 +148,7 @@ public class TextEditorActivity extends Activity {
         if (nameLower.endsWith(".md") || nameLower.endsWith(".txt") || nameLower.endsWith(".log")) {
             return true;
         }
-        return false; // Code files (.java, .json, .xml, .html, .js, .css, .sh, .py, etc.)
+        return false; 
     }
 
     private void setupEdgeToEdge() {
@@ -161,7 +171,7 @@ public class TextEditorActivity extends Activity {
         mRootLayout.setOrientation(LinearLayout.VERTICAL);
         mRootLayout.setBackgroundColor(ThemeTokens.COLOR_BG);
 
-        // Soft Keyboard & Inset handling: anchors toolbar to keyboard top
+        
         mRootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
             int bottomInset = 0;
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -178,26 +188,26 @@ public class TextEditorActivity extends Activity {
             return insets;
         });
 
-        // 1. Header Bar
+        
         View header = createHeader();
         mRootLayout.addView(header);
 
-        // 2. Editor Container (Gutter + Editor)
+        
         View editorContainer = createEditorContainer();
         LinearLayout.LayoutParams edLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         mRootLayout.addView(editorContainer, edLp);
 
-        // 3. Compact Search & Replace Bar (Placed above accessory bar)
+        
         mSearchBar = createCompactSearchBar();
         mRootLayout.addView(mSearchBar);
 
-        // 4. Accessory Key Toolbar (Attached right above keyboard)
+        
         View accessoryBar = createAccessoryBar();
         mRootLayout.addView(accessoryBar);
 
         setContentView(mRootLayout);
 
-        // Pinch to zoom font size
+        
         mScaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
             @Override
             public boolean onScale(ScaleGestureDetector detector) {
@@ -221,7 +231,7 @@ public class TextEditorActivity extends Activity {
         bar.setPadding(ThemeTokens.dp(this, 16), padTop, ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
         bar.setBackgroundColor(ThemeTokens.COLOR_SURFACE_GLASS);
 
-        // Back button (<)
+        
         ImageView btnBack = new ImageView(this);
         btnBack.setImageResource(R.drawable.ic_chevron_right);
         btnBack.setRotation(180);
@@ -231,7 +241,7 @@ public class TextEditorActivity extends Activity {
         btnBack.setOnClickListener(v -> handleBackPress());
         bar.addView(btnBack);
 
-        // Title & Metadata column
+        
         LinearLayout textCol = new LinearLayout(this);
         textCol.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
@@ -255,15 +265,15 @@ public class TextEditorActivity extends Activity {
 
         bar.addView(textCol, colLp);
 
-        // Search Action Icon
+        
         ImageView btnSearch = createHeaderIcon(R.drawable.ic_search, v -> toggleSearchBar());
         bar.addView(btnSearch);
 
-        // More Menu Action Icon ("⋯")
+        
         ImageView btnMore = createHeaderIcon(R.drawable.ic_more_dots, v -> showEditorOptionsMenu());
         bar.addView(btnMore);
 
-        // Save Action (Button Pill)
+        
         mBtnSave = new TextView(this);
         mBtnSave.setText("Lưu");
         mBtnSave.setTextColor(Color.WHITE);
@@ -304,14 +314,14 @@ public class TextEditorActivity extends Activity {
                 ThemeTokens.dp(this, 10), ThemeTokens.dp(this, 6));
         container.setVisibility(View.GONE);
 
-        // --- Row 1: Compact Search (~44dp) ---
+        
         LinearLayout row1 = new LinearLayout(this);
         row1.setOrientation(LinearLayout.HORIZONTAL);
         row1.setGravity(Gravity.CENTER_VERTICAL);
         LinearLayout.LayoutParams r1Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 40));
         row1.setLayoutParams(r1Lp);
 
-        // Search Field Box
+        
         LinearLayout searchBox = new LinearLayout(this);
         searchBox.setOrientation(LinearLayout.HORIZONTAL);
         searchBox.setGravity(Gravity.CENTER_VERTICAL);
@@ -320,7 +330,7 @@ public class TextEditorActivity extends Activity {
         GradientDrawable sbBg = new GradientDrawable();
         sbBg.setCornerRadius(ThemeTokens.dp(this, 10));
         sbBg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
-        sbBg.setStroke(ThemeTokens.dp(this, 1), 0x26FFFFFF); // 15% white thin border
+        sbBg.setStroke(ThemeTokens.dp(this, 1), 0x26FFFFFF); 
         searchBox.setBackground(sbBg);
 
         ImageView searchIcon = new ImageView(this);
@@ -349,28 +359,28 @@ public class TextEditorActivity extends Activity {
         sbLp.rightMargin = ThemeTokens.dp(this, 6);
         row1.addView(searchBox, sbLp);
 
-        // Navigation Chevron: Prev
+        
         ImageView btnPrev = createBarActionIcon(R.drawable.ic_chevron_right, v -> navigateMatch(-1));
         btnPrev.setRotation(180);
         row1.addView(btnPrev);
 
-        // Navigation Chevron: Next
+        
         ImageView btnNext = createBarActionIcon(R.drawable.ic_chevron_right, v -> navigateMatch(1));
         row1.addView(btnNext);
 
-        // Expand Chevron (Toggle Replace & Regex Row)
+        
         mBtnExpandReplace = createBarActionIcon(R.drawable.ic_chevron_right, v -> toggleReplaceRow());
         mBtnExpandReplace.setRotation(90);
         row1.addView(mBtnExpandReplace);
 
-        // Close Search Button
+        
         ImageView btnClose = createBarActionIcon(R.drawable.ic_close, v -> toggleSearchBar());
         btnClose.setColorFilter(ThemeTokens.COLOR_SEC_LABEL);
         row1.addView(btnClose);
 
         container.addView(row1);
 
-        // --- Row 2: Replace & Option Chips (Expandable) ---
+        
         mReplaceRow = new LinearLayout(this);
         mReplaceRow.setOrientation(LinearLayout.HORIZONTAL);
         mReplaceRow.setGravity(Gravity.CENTER_VERTICAL);
@@ -379,7 +389,7 @@ public class TextEditorActivity extends Activity {
         mReplaceRow.setLayoutParams(r2Lp);
         mReplaceRow.setVisibility(View.GONE);
 
-        // Replace Box
+        
         LinearLayout replaceBox = new LinearLayout(this);
         replaceBox.setOrientation(LinearLayout.HORIZONTAL);
         replaceBox.setGravity(Gravity.CENTER_VERTICAL);
@@ -405,15 +415,15 @@ public class TextEditorActivity extends Activity {
         rbLp.rightMargin = ThemeTokens.dp(this, 6);
         mReplaceRow.addView(replaceBox, rbLp);
 
-        // Replace one button
+        
         TextView btnReplaceOne = createTextAction("Thay thế", v -> replaceCurrentMatch());
         mReplaceRow.addView(btnReplaceOne);
 
-        // Replace all button
+        
         TextView btnReplaceAll = createTextAction("Tất cả", v -> replaceAllMatches());
         mReplaceRow.addView(btnReplaceAll);
 
-        // Aa Chip (Case toggle)
+        
         mChipCase = createFilterChip("Aa", mMatchCase, v -> {
             mMatchCase = !mMatchCase;
             updateChipState(mChipCase, mMatchCase);
@@ -421,7 +431,7 @@ public class TextEditorActivity extends Activity {
         });
         mReplaceRow.addView(mChipCase);
 
-        // .* Chip (Regex toggle)
+        
         mChipRegex = createFilterChip(".*", mUseRegex, v -> {
             mUseRegex = !mUseRegex;
             updateChipState(mChipRegex, mUseRegex);
@@ -431,7 +441,7 @@ public class TextEditorActivity extends Activity {
 
         container.addView(mReplaceRow);
 
-        // Live search text listener
+        
         mSearchInput.addTextChangedListener(new TextWatcher() {
             @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
             @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
@@ -493,9 +503,9 @@ public class TextEditorActivity extends Activity {
         int padTop = ThemeTokens.dp(this, 12);
         int padBottom = ThemeTokens.dp(this, 100);
 
-        // Line Numbers Gutter
+        
         mLineNumbers = new TextView(this);
-        mLineNumbers.setTextColor(0x55FFFFFF); // Subtle translucent gray
+        mLineNumbers.setTextColor(0x55FFFFFF); 
         mLineNumbers.setTextSize(TypedValue.COMPLEX_UNIT_SP, mFontSizeSp);
         mLineNumbers.setTypeface(Typeface.MONOSPACE);
         mLineNumbers.setPadding(ThemeTokens.dp(this, 10), padTop, ThemeTokens.dp(this, 8), padBottom);
@@ -504,12 +514,12 @@ public class TextEditorActivity extends Activity {
         adjustGutterWidth(1);
         row.addView(mLineNumbers);
 
-        // Vertical Separator (0.5dp line)
+        
         View sep = new View(this);
         sep.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
         row.addView(sep, new LinearLayout.LayoutParams(ThemeTokens.dp(this, 1), ViewGroup.LayoutParams.MATCH_PARENT));
 
-        // Editor
+        
         mEditor = new EditText(this);
         mEditor.setTextColor(Color.WHITE);
         mEditor.setTextSize(TypedValue.COMPLEX_UNIT_SP, mFontSizeSp);
@@ -519,10 +529,10 @@ public class TextEditorActivity extends Activity {
         mEditor.setPadding(ThemeTokens.dp(this, 8), padTop, ThemeTokens.dp(this, 16), padBottom);
         mEditor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
 
-        // Apply word wrap setting
+        
         applyWordWrap(mIsWrapEnabled);
 
-        // Auto-indent on Enter
+        
         mEditor.setOnKeyListener((v, keyCode, event) -> {
             if (keyCode == KeyEvent.KEYCODE_ENTER && event.getAction() == KeyEvent.ACTION_DOWN) {
                 int start = mEditor.getSelectionStart();
@@ -558,6 +568,8 @@ public class TextEditorActivity extends Activity {
                 }
                 setDirty(true);
                 updateLineNumbers();
+                mHighlightHandler.removeCallbacks(mHighlightRunnable);
+                mHighlightHandler.postDelayed(mHighlightRunnable, 350);
             }
             @Override public void afterTextChanged(Editable s) {}
         });
@@ -592,7 +604,7 @@ public class TextEditorActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
-        // Shortcuts
+        
         String[] keys = {"Tab", "{", "}", "(", ")", "[", "]", "<", ">", "\"", "'", ";", "=", "/", "\\"};
         for (String k : keys) {
             TextView btn = new TextView(this);
@@ -616,7 +628,7 @@ public class TextEditorActivity extends Activity {
             row.addView(btn);
         }
 
-        // Undo & Redo buttons
+        
         TextView btnUndo = createAccessoryBtn("↶ Hoàn tác", v -> performUndo());
         row.addView(btnUndo);
 
@@ -638,28 +650,28 @@ public class TextEditorActivity extends Activity {
         Editable text = mEditor.getText();
         if (text == null) return;
 
-        // Auto-pairing quotes and brackets
+        
         if (key.length() == 1) {
             char ch = key.charAt(0);
             char closeChar = getPairedClosingChar(ch);
 
             if (closeChar != 0) {
-                // Opening bracket or quote
+                
                 if (start < end) {
-                    // Wrap selected text
+                    
                     String selected = text.subSequence(start, end).toString();
                     text.replace(start, end, ch + selected + closeChar);
                     mEditor.setSelection(start + 1, end + 1);
                 } else {
-                    // No selection: insert pair and place cursor inside
+                    
                     text.insert(start, "" + ch + closeChar);
                     mEditor.setSelection(start + 1);
                 }
                 return;
             } else if (isClosingChar(ch)) {
-                // Closing bracket
+                
                 if (start == end && start < text.length() && text.charAt(start) == ch) {
-                    // Skip over existing closing character
+                    
                     mEditor.setSelection(start + 1);
                     return;
                 }
@@ -767,6 +779,7 @@ public class TextEditorActivity extends Activity {
                 runOnUiThread(() -> {
                     mIsUndoOrRedo = true;
                     mEditor.setText(mDoc.content);
+                    SyntaxHighlighter.highlight(mEditor.getText(), mFile != null ? mFile.getName() : "");
                     mIsUndoOrRedo = false;
                     setDirty(false);
                     updateLineNumbers();
@@ -820,7 +833,7 @@ public class TextEditorActivity extends Activity {
             return;
         }
 
-        // iOS Bottom Sheet confirm unsaved exit
+        
         Dialog dialog = IosSheet.createBaseDialog(this);
         LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
 
@@ -939,7 +952,7 @@ public class TextEditorActivity extends Activity {
 
             int count = mSearchResults.size();
             if (count > 0) {
-                // Find nearest match to current cursor
+                
                 int cursorPos = mEditor.getSelectionStart();
                 mCurrentSearchIndex = 0;
                 for (int i = 0; i < count; i++) {
@@ -1017,10 +1030,17 @@ public class TextEditorActivity extends Activity {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
-        // Group 1: Navigation & Formatting
+        
         LinearLayout group1 = IosSheet.createActionGroup(this);
 
-        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_tab_hash, "Đi tới dòng...", false, v -> {
+        if (isHtmlOrMarkdown()) {
+            group1.addView(IosSheet.createActionRow(this, R.drawable.ic_eye, "Xem trước trực tiếp", false, v -> {
+                dialog.dismiss();
+                showLivePreviewSheet();
+            }, true));
+        }
+
+        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_file_text, "Đi tới dòng...", false, v -> {
             dialog.dismiss();
             showGoToLineDialog();
         }, true));
@@ -1041,7 +1061,7 @@ public class TextEditorActivity extends Activity {
         }, false));
         sheet.addView(group1);
 
-        // Group 2: File Actions
+        
         LinearLayout group2 = IosSheet.createActionGroup(this);
 
         group2.addView(IosSheet.createActionRow(this, R.drawable.ic_copy, "Lưu bản sao...", false, v -> {
@@ -1055,7 +1075,7 @@ public class TextEditorActivity extends Activity {
         }, false));
         sheet.addView(group2);
 
-        // Group 3: File Details
+        
         LinearLayout group3 = IosSheet.createActionGroup(this);
         group3.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12),
                 ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12));
@@ -1230,5 +1250,108 @@ public class TextEditorActivity extends Activity {
     private int getStatusBarHeight() {
         int resId = getResources().getIdentifier("status_bar_height", "dimen", "android");
         return resId > 0 ? getResources().getDimensionPixelSize(resId) : ThemeTokens.dp(this, 24);
+    }
+
+    private boolean isHtmlOrMarkdown() {
+        if (mFile == null) return false;
+        String name = mFile.getName().toLowerCase();
+        return name.endsWith(".html") || name.endsWith(".htm") || name.endsWith(".md");
+    }
+
+    private void showLivePreviewSheet() {
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Xem trước trực tiếp");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        WebView webView = new WebView(this);
+        webView.setBackgroundColor(0xFF121214);
+        WebSettings settings = webView.getSettings();
+        settings.setJavaScriptEnabled(true);
+        settings.setDefaultTextEncodingName("UTF-8");
+
+        String content = mEditor.getText().toString();
+        String html;
+        if (mFile != null && mFile.getName().toLowerCase().endsWith(".md")) {
+            html = convertMarkdownToHtml(content);
+        } else {
+            html = content;
+        }
+        webView.loadDataWithBaseURL(null, html, "text/html", "UTF-8", null);
+
+        LinearLayout.LayoutParams wlp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 400));
+        wlp.topMargin = ThemeTokens.dp(this, 12);
+        sheet.addView(webView, wlp);
+
+        IosSheet.show(dialog, sheet);
+    }
+
+    private String convertMarkdownToHtml(String md) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<!DOCTYPE html><html><head><meta name='viewport' content='width=device-width, initial-scale=1.0'><style>");
+        sb.append("body { background: #121214; color: #f4f4f5; font-family: -apple-system, sans-serif; padding: 16px; line-height: 1.6; }");
+        sb.append("h1, h2, h3 { color: #0A84FF; margin-top: 18px; margin-bottom: 8px; font-weight: 600; }");
+        sb.append("h1 { font-size: 1.5em; border-bottom: 1px solid #2C2C2E; padding-bottom: 6px; }");
+        sb.append("h2 { font-size: 1.3em; }");
+        sb.append("h3 { font-size: 1.1em; }");
+        sb.append("code { background: #2C2C2E; padding: 2px 6px; border-radius: 4px; font-family: monospace; color: #64D2FF; font-size: 0.9em; }");
+        sb.append("pre { background: #1C1C1E; padding: 12px; border-radius: 8px; overflow-x: auto; border: 1px solid #2C2C2E; }");
+        sb.append("pre code { background: transparent; padding: 0; color: #30D158; }");
+        sb.append("blockquote { border-left: 3px solid #0A84FF; margin: 0; padding-left: 12px; color: #8E8E93; }");
+        sb.append("p { margin: 8px 0; }");
+        sb.append("</style></head><body>");
+
+        String[] lines = md.split("\n");
+        boolean inPre = false;
+        for (String line : lines) {
+            String trimmed = line.trim();
+            if (trimmed.startsWith("```")) {
+                if (inPre) {
+                    sb.append("</code></pre>");
+                    inPre = false;
+                } else {
+                    sb.append("<pre><code>");
+                    inPre = true;
+                }
+                continue;
+            }
+            if (inPre) {
+                sb.append(escapeHtml(line)).append("\n");
+                continue;
+            }
+            if (trimmed.startsWith("### ")) {
+                sb.append("<h3>").append(escapeHtml(trimmed.substring(4))).append("</h3>");
+            } else if (trimmed.startsWith("## ")) {
+                sb.append("<h2>").append(escapeHtml(trimmed.substring(3))).append("</h2>");
+            } else if (trimmed.startsWith("# ")) {
+                sb.append("<h1>").append(escapeHtml(trimmed.substring(2))).append("</h1>");
+            } else if (trimmed.startsWith("> ")) {
+                sb.append("<blockquote>").append(escapeHtml(trimmed.substring(2))).append("</blockquote>");
+            } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+                sb.append("<li>").append(escapeHtml(trimmed.substring(2))).append("</li>");
+            } else if (!trimmed.isEmpty()) {
+                String p = escapeHtml(line);
+                p = p.replaceAll("\\*\\*(.+?)\\*\\*", "<strong>$1</strong>");
+                p = p.replaceAll("\\*(.+?)\\*", "<em>$1</em>");
+                p = p.replaceAll("`(.+?)`", "<code>$1</code>");
+                sb.append("<p>").append(p).append("</p>");
+            }
+        }
+        if (inPre) {
+            sb.append("</code></pre>");
+        }
+        sb.append("</body></html>");
+        return sb.toString();
+    }
+
+    private String escapeHtml(String s) {
+        if (s == null) return "";
+        return s.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
     }
 }

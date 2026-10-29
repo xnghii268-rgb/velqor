@@ -48,7 +48,7 @@ public final class NewItemSheet {
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
-        // Group 1: Cơ bản
+        
         LinearLayout group1 = IosSheet.createActionGroup(activity);
         group1.addView(IosSheet.createActionRow(activity, R.drawable.ic_folder_plus, "Thư mục mới", false, v -> {
             dialog.dismiss();
@@ -61,7 +61,7 @@ public final class NewItemSheet {
         }, false));
         sheet.addView(group1);
 
-        // Group 2: Mẫu tệp nhanh
+        
         LinearLayout group2 = IosSheet.createActionGroup(activity);
         group2.addView(IosSheet.createActionRow(activity, R.drawable.ic_file_code, "Tài liệu Markdown (.md)", false, v -> {
             dialog.dismiss();
@@ -94,7 +94,7 @@ public final class NewItemSheet {
         }, false));
         sheet.addView(group2);
 
-        // Nút Hủy
+        
         LinearLayout cancelCard = IosSheet.createActionGroup(activity);
         cancelCard.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         ((LinearLayout.LayoutParams) cancelCard.getLayoutParams()).topMargin = ThemeTokens.dp(activity, 12);
@@ -133,7 +133,7 @@ public final class NewItemSheet {
         subtitle.setLayoutParams(subLp);
         sheet.addView(subtitle);
 
-        // Input Field
+        
         EditText input = new EditText(activity);
         input.setText(defaultName);
         input.setTextColor(ThemeTokens.COLOR_LABEL);
@@ -151,7 +151,7 @@ public final class NewItemSheet {
         inLp.topMargin = ThemeTokens.dp(activity, 16);
         sheet.addView(input, inLp);
 
-        // Real-time error/warning label
+        
         TextView errorText = new TextView(activity);
         errorText.setTextSize(13);
         errorText.setVisibility(View.GONE);
@@ -160,7 +160,7 @@ public final class NewItemSheet {
         errLp.leftMargin = ThemeTokens.dp(activity, 4);
         sheet.addView(errorText, errLp);
 
-        // Extension Chips Row
+        
         HorizontalScrollView chipScroll = new HorizontalScrollView(activity);
         chipScroll.setHorizontalScrollBarEnabled(false);
         LinearLayout.LayoutParams chipScrollLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
@@ -204,7 +204,7 @@ public final class NewItemSheet {
         chipScroll.addView(chipRow);
         sheet.addView(chipScroll);
 
-        // Action Buttons
+        
         LinearLayout btnRow = new LinearLayout(activity);
         btnRow.setOrientation(LinearLayout.HORIZONTAL);
         btnRow.setGravity(Gravity.END);
@@ -237,7 +237,7 @@ public final class NewItemSheet {
         btnRow.addView(btnCreate);
         sheet.addView(btnRow);
 
-        // Real-time validation listener
+        
         Runnable validate = () -> {
             String text = input.getText().toString();
             FileCreator.ValidationResult vr = FileCreator.validateFileName(currentDir, text);
@@ -259,7 +259,7 @@ public final class NewItemSheet {
                 btnCreate.setAlpha(0.4f);
             } else if (vr.isWarning) {
                 errorText.setVisibility(View.VISIBLE);
-                errorText.setTextColor(0xFFFFCC00); // Yellow warning
+                errorText.setTextColor(0xFFFFCC00); 
                 errorText.setText(vr.message);
                 errorText.setOnClickListener(null);
                 btnCreate.setEnabled(true);
@@ -304,7 +304,7 @@ public final class NewItemSheet {
 
         IosSheet.show(dialog, sheet, true);
 
-        // Pre-select filename part without extension
+        
         input.requestFocus();
         int dot = defaultName.lastIndexOf('.');
         if (dot > 0) {

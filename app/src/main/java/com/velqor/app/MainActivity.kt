@@ -245,7 +245,6 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
-        // Re-check permissions when coming back from system settings
     }
 
     private fun checkStoragePermission(): Boolean {

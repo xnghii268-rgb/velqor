@@ -45,7 +45,7 @@ public final class IosSheet {
     public static LinearLayout createSheetRoot(Context ctx, Dialog dialog) {
         int screenWidth = ctx.getResources().getDisplayMetrics().widthPixels;
         int screenHeight = ctx.getResources().getDisplayMetrics().heightPixels;
-        final int maxSheetHeight = (int) (screenHeight * 0.75f); // Max height 75% screen
+        final int maxSheetHeight = (int) (screenHeight * 0.75f); 
 
         LinearLayout sheet = new LinearLayout(ctx) {
             @Override
@@ -72,7 +72,7 @@ public final class IosSheet {
         bg.setColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
         sheet.setBackground(bg);
 
-        // Grabber bar 36x5dp
+        
         View grabber = new View(ctx);
         int grabberW = ThemeTokens.dp(ctx, 36);
         int grabberH = ThemeTokens.dp(ctx, 5);
@@ -223,13 +223,71 @@ public final class IosSheet {
         card.addView(btnDelete);
         sheet.addView(card);
 
-        // Cancel Card
+        
         LinearLayout cancelCard = createActionGroup(ctx);
         TextView btnCancel = new TextView(ctx);
         btnCancel.setText("Hủy");
         btnCancel.setTextColor(ThemeTokens.COLOR_ACCENT);
         btnCancel.setTextSize(17);
         btnCancel.setTypeface(Typeface.DEFAULT_BOLD);
+        btnCancel.setGravity(Gravity.CENTER);
+        btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(ctx, 52)));
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        cancelCard.addView(btnCancel);
+        sheet.addView(cancelCard);
+
+        show(dialog, sheet);
+    }
+
+    public static void showConfirmDialog(Context ctx, String titleStr, String messageStr, String confirmBtnText, Runnable onConfirm) {
+        Dialog dialog = createBaseDialog(ctx);
+        LinearLayout sheet = createSheetRoot(ctx, dialog);
+
+        LinearLayout card = createActionGroup(ctx);
+        card.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 16),
+                ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 16));
+        card.setGravity(Gravity.CENTER);
+
+        TextView title = new TextView(ctx);
+        title.setText(titleStr);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTextSize(16);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        card.addView(title);
+
+        TextView msg = new TextView(ctx);
+        msg.setText(messageStr);
+        msg.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        msg.setTextSize(13);
+        msg.setGravity(Gravity.CENTER);
+        msg.setPadding(0, ThemeTokens.dp(ctx, 6), 0, ThemeTokens.dp(ctx, 12));
+        card.addView(msg);
+
+        View div = new View(ctx);
+        div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+        div.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(ctx, 1) / 2)));
+        card.addView(div);
+
+        TextView btnAction = new TextView(ctx);
+        btnAction.setText(confirmBtnText);
+        btnAction.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnAction.setTextSize(17);
+        btnAction.setTypeface(Typeface.DEFAULT_BOLD);
+        btnAction.setGravity(Gravity.CENTER);
+        btnAction.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(ctx, 48)));
+        btnAction.setOnClickListener(v -> {
+            dialog.dismiss();
+            if (onConfirm != null) onConfirm.run();
+        });
+        card.addView(btnAction);
+        sheet.addView(card);
+
+        LinearLayout cancelCard = createActionGroup(ctx);
+        TextView btnCancel = new TextView(ctx);
+        btnCancel.setText("Hủy");
+        btnCancel.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        btnCancel.setTextSize(17);
         btnCancel.setGravity(Gravity.CENTER);
         btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(ctx, 52)));
         btnCancel.setOnClickListener(v -> dialog.dismiss());

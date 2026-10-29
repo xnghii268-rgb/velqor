@@ -14,7 +14,7 @@ public final class ThumbnailCache {
 
     private final LruCache<String, Bitmap> mMemoryCache;
     private final File mDiskCacheDir;
-    private static final long MAX_DISK_CACHE_BYTES = 50L * 1024 * 1024; // 50 MB
+    private static final long MAX_DISK_CACHE_BYTES = 50L * 1024 * 1024; 
 
     public static synchronized ThumbnailCache getInstance(Context context) {
         if (sInstance == null) {
@@ -25,7 +25,7 @@ public final class ThumbnailCache {
 
     private ThumbnailCache(Context context) {
         int maxMemory = (int) (Runtime.getRuntime().maxMemory() / 1024);
-        int cacheSize = maxMemory / 8; // 1/8 of heap size in KB
+        int cacheSize = maxMemory / 8; 
 
         mMemoryCache = new LruCache<String, Bitmap>(cacheSize) {
             @Override
@@ -48,13 +48,13 @@ public final class ThumbnailCache {
     public Bitmap get(String key) {
         if (key == null || key.isEmpty()) return null;
 
-        // 1. RAM Cache
+        
         Bitmap bm = mMemoryCache.get(key);
         if (bm != null && !bm.isRecycled()) {
             return bm;
         }
 
-        // 2. Disk Cache
+        
         File diskFile = new File(mDiskCacheDir, key + ".thumb");
         if (diskFile.exists()) {
             try {
@@ -71,10 +71,10 @@ public final class ThumbnailCache {
     public void put(String key, Bitmap bitmap) {
         if (key == null || bitmap == null || bitmap.isRecycled()) return;
 
-        // Put RAM
+        
         mMemoryCache.put(key, bitmap);
 
-        // Put Disk
+        
         try {
             File diskFile = new File(mDiskCacheDir, key + ".thumb");
             try (FileOutputStream fos = new FileOutputStream(diskFile)) {
@@ -114,7 +114,7 @@ public final class ThumbnailCache {
         for (File f : files) total += f.length();
 
         if (total > MAX_DISK_CACHE_BYTES) {
-            // Sort by oldest modified
+            
             Arrays.sort(files, (a, b) -> Long.compare(a.lastModified(), b.lastModified()));
             for (File f : files) {
                 long len = f.length();
