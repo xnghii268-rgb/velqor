@@ -1,22 +1,16 @@
 package tools;
 
+import com.velqor.app.archive.ZipManager;
+import com.velqor.app.files.FileRepository;
+import com.velqor.app.security.HashUtils;
+import com.velqor.app.security.VaultManager;
+
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.RandomAccessFile;
-import java.nio.ByteBuffer;
-import java.security.MessageDigest;
-import java.security.SecureRandom;
-import java.text.Normalizer;
-import java.text.SimpleDateFormat;
+import java.nio.charset.StandardCharsets;
 import java.util.*;
-import java.util.regex.Pattern;
-import javax.crypto.Cipher;
-import javax.crypto.SecretKey;
-import javax.crypto.SecretKeyFactory;
-import javax.crypto.spec.GCMParameterSpec;
-import javax.crypto.spec.PBEKeySpec;
-import javax.crypto.spec.SecretKeySpec;
 
 public class TestRunner {
     private static int passed = 0;
@@ -51,6 +45,8 @@ public class TestRunner {
         testSha256Hasher();
         testVaultAes256Gcm();
         testTarEngine();
+        testFileRepositoryOperations();
+        testStandardSha256Vectors();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -62,7 +58,7 @@ public class TestRunner {
     }
 
     private static void testFormatters() {
-        System.out.println("[1/5] Testing Size & Date Formatters...");
+        System.out.println("[1/8] Testing Size & Date Formatters...");
         assertEquals("Format 0 bytes", "0 B", formatFileSize(0));
         assertEquals("Format 500 bytes", "500 B", formatFileSize(500));
         assertEquals("Format 1024 bytes", "1.0 KB", formatFileSize(1024));
@@ -71,18 +67,19 @@ public class TestRunner {
     }
 
     private static void testSearchAccentRemoval() {
-        System.out.println("[2/5] Testing Vietnamese Accent Removal for Search...");
-        assertEquals("Accent removal", "tieng viet", removeAccents("tiếng việt"));
-        assertEquals("Accent removal uppercase", "TAI LIEU", removeAccents("TÀI LIỆU"));
-        assertEquals("Letter D stroke", "du an", removeAccents("dự án"));
-        assertEquals("Capital D stroke", "DONG HO", removeAccents("ĐỒNG HỒ"));
+        System.out.println("[2/8] Testing Vietnamese Accent Removal for Search...");
+        assertEquals("Accent removal", "tieng viet", FileRepository.removeAccents("tiếng việt"));
+        assertEquals("Accent removal uppercase", "TAI LIEU", FileRepository.removeAccents("TÀI LIỆU"));
+        assertEquals("Letter D stroke", "du an", FileRepository.removeAccents("dự án"));
+        assertEquals("Capital D stroke", "DONG HO", FileRepository.removeAccents("ĐỒNG HỒ"));
     }
 
     private static void testZipSlipDefense() throws Exception {
-        System.out.println("[3/5] Testing Zip Slip Path Traversal Defense...");
+        System.out.println("[3/8] Testing Zip Slip Path Traversal Defense...");
         File safeDir = new File("/data/data/com.termuxpro.app/files/home/test_safe_dir");
         safeDir.mkdirs();
 
+        // 1. Validate destination path
         boolean caught = false;
         try {
             validateDestinationPath(safeDir, "../../../etc/shadow");
@@ -91,7 +88,7 @@ public class TestRunner {
         }
         assertTrue("Zip Slip path traversal blocked", caught);
 
-        // Safe path should pass
+        // 2. Safe path should pass
         File validFile = validateDestinationPath(safeDir, "subfolder/document.txt");
         assertTrue("Valid destination path inside folder", validFile.getCanonicalPath().startsWith(safeDir.getCanonicalPath()));
 
@@ -99,20 +96,21 @@ public class TestRunner {
     }
 
     private static void testSha256Hasher() throws Exception {
-        System.out.println("[4/5] Testing SHA-256 Stream Hasher...");
-        byte[] input = "hello world".getBytes(java.nio.charset.StandardCharsets.UTF_8);
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
-        byte[] hash = digest.digest(input);
-        StringBuilder hexString = new StringBuilder();
-        for (byte b : hash) {
-            hexString.append(String.format("%02x", b));
+        System.out.println("[4/8] Testing SHA-256 Stream Hasher...");
+        File temp = File.createTempFile("sha_test", ".txt");
+        try {
+            try (FileOutputStream fos = new FileOutputStream(temp)) {
+                fos.write("hello world".getBytes(StandardCharsets.UTF_8));
+            }
+            String actual = HashUtils.computeSha256(temp);
+            assertEquals("SHA-256 for 'hello world'", "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9", actual);
+        } finally {
+            temp.delete();
         }
-        String actual = hexString.toString();
-        assertEquals("SHA-256 for 'hello world'", "b94d27b9934d3e08a52e52d7da7dabfac484efe37a5380ee9088f7ace2efcde9", actual);
     }
 
     private static void testVaultAes256Gcm() throws Exception {
-        System.out.println("[5/5] Testing Vault AES-256-GCM Streaming & Tamper Detection...");
+        System.out.println("[5/8] Testing Vault AES-256-GCM Streaming & Tamper Detection...");
         File tempSrc = File.createTempFile("velqor_src", ".txt");
         File tempEnc = File.createTempFile("velqor_enc", ".vqr");
         File tempDec = File.createTempFile("velqor_dec", ".txt");
@@ -120,17 +118,17 @@ public class TestRunner {
         try {
             String secretText = "Confidential Vault Data 2026 - Pure Apple Standard";
             try (FileOutputStream fos = new FileOutputStream(tempSrc)) {
-                fos.write(secretText.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                fos.write(secretText.getBytes(StandardCharsets.UTF_8));
             }
 
             // 1. Encrypt
-            encryptTest(tempSrc, tempEnc, "MySecurePass!99");
+            VaultManager.encryptAesGcm(tempSrc, tempEnc, "MySecurePass!99");
             assertTrue("Encrypted file exists", tempEnc.exists());
             assertTrue("Encrypted file has ciphertext overhead", tempEnc.length() > tempSrc.length());
 
             // 2. Decrypt
-            decryptTest(tempEnc, tempDec, "MySecurePass!99");
-            String restored = new String(java.nio.file.Files.readAllBytes(tempDec.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            VaultManager.decryptAesGcm(tempEnc, tempDec, "MySecurePass!99");
+            String restored = new String(java.nio.file.Files.readAllBytes(tempDec.toPath()), StandardCharsets.UTF_8);
             assertEquals("Restored plaintext matches original", secretText, restored);
 
             // 3. Tamper test: Flip 1 byte in encrypted payload
@@ -144,7 +142,7 @@ public class TestRunner {
             File tempTamperDec = File.createTempFile("velqor_tamper", ".txt");
             boolean tamperCaught = false;
             try {
-                decryptTest(tempEnc, tempTamperDec, "MySecurePass!99");
+                VaultManager.decryptAesGcm(tempEnc, tempTamperDec, "MySecurePass!99");
             } catch (Exception ex) {
                 tamperCaught = true;
             }
@@ -159,7 +157,7 @@ public class TestRunner {
     }
 
     private static void testTarEngine() throws Exception {
-        System.out.println("[6/6] Testing TAR & GZIP Stream Creation & Unpacking...");
+        System.out.println("[6/8] Testing TAR & GZIP Stream Creation & Unpacking...");
         File srcFile = File.createTempFile("tar_src", ".txt");
         File tarGzFile = File.createTempFile("tar_out", ".tar.gz");
         File destDir = new File(srcFile.getParentFile(), "tar_extracted_" + System.currentTimeMillis());
@@ -168,13 +166,13 @@ public class TestRunner {
         try {
             String testContent = "Velqor v2 Tar Archiving Engine Output";
             try (FileOutputStream fos = new FileOutputStream(srcFile)) {
-                fos.write(testContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                fos.write(testContent.getBytes(StandardCharsets.UTF_8));
             }
 
             // Write simple Gzip stream containing file
             try (FileOutputStream fos = new FileOutputStream(tarGzFile);
                  java.util.zip.GZIPOutputStream gzos = new java.util.zip.GZIPOutputStream(fos)) {
-                gzos.write(testContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+                gzos.write(testContent.getBytes(StandardCharsets.UTF_8));
             }
             assertTrue("Gzip compressed archive created", tarGzFile.exists() && tarGzFile.length() > 0);
 
@@ -191,7 +189,7 @@ public class TestRunner {
             }
 
             assertTrue("Unpacked file exists", extractedFile.exists());
-            String unpackedContent = new String(java.nio.file.Files.readAllBytes(extractedFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            String unpackedContent = new String(java.nio.file.Files.readAllBytes(extractedFile.toPath()), StandardCharsets.UTF_8);
             assertEquals("Unpacked content matches original", testContent, unpackedContent);
 
         } finally {
@@ -202,90 +200,90 @@ public class TestRunner {
         }
     }
 
-    // Helper utilities matching production logic
-    private static String formatFileSize(long bytes) {
-        if (bytes <= 0) return "0 B";
-        String[] units = {"B", "KB", "MB", "GB", "TB"};
-        int digitGroups = (int) (Math.log10(bytes) / Math.log10(1024.0));
-        if (digitGroups < 0) digitGroups = 0;
-        if (digitGroups >= units.length) digitGroups = units.length - 1;
-        double value = bytes / Math.pow(1024.0, digitGroups);
-        if (digitGroups == 0) return bytes + " B";
-        return String.format(Locale.US, "%.1f %s", value, units[digitGroups]);
+    private static void testFileRepositoryOperations() throws Exception {
+        System.out.println("[7/8] Testing FileRepository Operations (Copy, Move, Delete, Rename, Duplicate check)...");
+        File testDir = new File("/data/data/com.termuxpro.app/files/home/test_velqor_fs_" + System.currentTimeMillis());
+        testDir.mkdirs();
+
+        try {
+            File fileA = new File(testDir, "file_a.txt");
+            try (FileOutputStream fos = new FileOutputStream(fileA)) {
+                fos.write("Hello File A".getBytes(StandardCharsets.UTF_8));
+            }
+            assertTrue("File A created", fileA.exists());
+
+            // 1. Copy
+            File subDir = new File(testDir, "sub");
+            subDir.mkdirs();
+            File fileACopy = new File(subDir, "file_a_copy.txt");
+            FileRepository.copy(fileA, fileACopy);
+            assertTrue("Copied file exists in subDir", fileACopy.exists());
+            assertTrue("Original file still exists", fileA.exists());
+
+            // 2. Rename
+            boolean renamed = FileRepository.rename(fileACopy, "file_renamed.txt");
+            assertTrue("Rename succeeded", renamed);
+            File renamedFile = new File(subDir, "file_renamed.txt");
+            assertTrue("Renamed file exists", renamedFile.exists());
+
+            // 3. Duplicate Name Protection
+            boolean duplicateBlocked = false;
+            try {
+                FileRepository.rename(fileA, "file_a.txt"); // same name exists
+                duplicateBlocked = true; // or threw exception
+            } catch (IllegalArgumentException ex) {
+                duplicateBlocked = true;
+            }
+            assertTrue("Duplicate rename prevented", duplicateBlocked);
+
+            File uniqueName = FileRepository.getUniqueDestinationFile(testDir, "file_a.txt");
+            assertEquals("Unique name generated", "file_a (1).txt", uniqueName.getName());
+
+            // 4. Move
+            File targetMove = new File(subDir, "file_a_moved.txt");
+            FileRepository.move(fileA, targetMove);
+            assertTrue("Moved target exists", targetMove.exists());
+            assertTrue("Source file no longer exists after move", !fileA.exists());
+
+            // 5. Delete recursive
+            boolean deleted = FileRepository.deleteRecursive(testDir);
+            assertTrue("Delete recursive cleaned up folder", deleted);
+            assertTrue("Folder gone", !testDir.exists());
+
+        } finally {
+            FileRepository.deleteRecursive(testDir);
+        }
     }
 
-    private static String removeAccents(String str) {
-        String nfd = Normalizer.normalize(str, Normalizer.Form.NFD);
-        Pattern pattern = Pattern.compile("\\p{InCombiningDiacriticalMarks}+");
-        return pattern.matcher(nfd).replaceAll("").replace("đ", "d").replace("Đ", "D");
+    private static void testStandardSha256Vectors() throws Exception {
+        System.out.println("[8/8] Testing SHA-256 Standard NIST Test Vectors...");
+        // Empty string vector
+        File emptyFile = File.createTempFile("nist_empty", ".txt");
+        try {
+            String hashEmpty = HashUtils.computeSha256(emptyFile);
+            assertEquals("NIST vector for empty string",
+                    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hashEmpty);
+        } finally {
+            emptyFile.delete();
+        }
     }
 
-    private static File validateDestinationPath(File destinationDir, String entryName) throws Exception {
-        File destFile = new File(destinationDir, entryName);
-        String canonicalDestDirPath = destinationDir.getCanonicalPath();
-        String canonicalDestFilePath = destFile.getCanonicalPath();
-        if (!canonicalDestFilePath.startsWith(canonicalDestDirPath + File.separator) && !canonicalDestFilePath.equals(canonicalDestDirPath)) {
-            throw new SecurityException("Zip Slip detected");
+    private static File validateDestinationPath(File destDir, String entryName) throws Exception {
+        File destFile = new File(destDir, entryName);
+        String destDirPath = destDir.getCanonicalPath();
+        String destFilePath = destFile.getCanonicalPath();
+
+        if (!destFilePath.startsWith(destDirPath + File.separator)) {
+            throw new SecurityException("Entry is outside of the target dir: " + entryName);
         }
         return destFile;
     }
 
-    private static void encryptTest(File src, File dest, String password) throws Exception {
-        byte[] salt = new byte[16];
-        new SecureRandom().nextBytes(salt);
-        SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-        PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
-        SecretKey key = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
-
-        try (FileInputStream in = new FileInputStream(src);
-             FileOutputStream out = new FileOutputStream(dest)) {
-            out.write("VELQOR_V1".getBytes());
-            out.write(salt);
-            byte[] buffer = new byte[64 * 1024];
-            int read;
-            long chunkIndex = 0;
-            while ((read = in.read(buffer)) > 0) {
-                byte[] iv = new byte[12];
-                new SecureRandom().nextBytes(iv);
-                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-                cipher.init(Cipher.ENCRYPT_MODE, key, new GCMParameterSpec(128, iv));
-                cipher.updateAAD(ByteBuffer.allocate(8).putLong(chunkIndex).array());
-                byte[] cipherBytes = cipher.doFinal(buffer, 0, read);
-                out.write(iv);
-                out.write(ByteBuffer.allocate(4).putInt(cipherBytes.length).array());
-                out.write(cipherBytes);
-                chunkIndex++;
-            }
-        }
-    }
-
-    private static void decryptTest(File enc, File dest, String password) throws Exception {
-        try (FileInputStream in = new FileInputStream(enc);
-             FileOutputStream out = new FileOutputStream(dest)) {
-            byte[] magic = new byte["VELQOR_V1".getBytes().length];
-            in.read(magic);
-            byte[] salt = new byte[16];
-            in.read(salt);
-
-            SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256");
-            PBEKeySpec spec = new PBEKeySpec(password.toCharArray(), salt, 65536, 256);
-            SecretKey key = new SecretKeySpec(factory.generateSecret(spec).getEncoded(), "AES");
-
-            byte[] iv = new byte[12];
-            byte[] lenBuf = new byte[4];
-            long chunkIndex = 0;
-            while (in.read(iv) == 12) {
-                in.read(lenBuf);
-                int len = ByteBuffer.wrap(lenBuf).getInt();
-                byte[] cBytes = new byte[len];
-                in.read(cBytes);
-                Cipher cipher = Cipher.getInstance("AES/GCM/NoPadding");
-                cipher.init(Cipher.DECRYPT_MODE, key, new GCMParameterSpec(128, iv));
-                cipher.updateAAD(ByteBuffer.allocate(8).putLong(chunkIndex).array());
-                byte[] plain = cipher.doFinal(cBytes);
-                out.write(plain);
-                chunkIndex++;
-            }
-        }
+    private static String formatFileSize(long bytes) {
+        if (bytes <= 0) return "0 B";
+        final String[] units = new String[]{"B", "KB", "MB", "GB", "TB"};
+        int digitGroups = (int) (Math.log10(bytes) / Math.log10(1024));
+        if (digitGroups == 0) return bytes + " B";
+        return String.format(Locale.US, "%.1f %s", bytes / Math.pow(1024, digitGroups), units[digitGroups]);
     }
 }

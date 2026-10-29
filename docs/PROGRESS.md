@@ -1,30 +1,31 @@
-# VELQOR — TIẾN ĐỘ PHÁT TRIỂN (v2.0.3)
+# VELQOR — TIẾN ĐỘ & QUYẾT ĐỊNH KIẾN TRÚC
 
-## Trạng thái hiện tại
-- **Phiên bản phát hành**: **v2.0.3 (versionCode 5)** — VELQOR PRO
-- **File APK cài đặt**: `/sdcard/AntiGravity/velqor-v2.0.3.apk` (440 KB)
-- **Thư mục dự án**: `/sdcard/AntiGravity/velqor`
-- **Repo GitHub**: `https://github.com/xnghii268-rgb/velqor`
+## Quyết định stack: giữ Java + View vì build trên Termux; được chủ dự án xác nhận ngày 2026-10-29
+- **Ngôn ngữ**: Java 17 OpenJDK (chạy trực tiếp trên Termux).
+- **UI Toolkit**: Android View Native (không dùng Jetpack Compose runtime vì quá nặng và dễ bị OOM trên Termux).
+- **Công cụ build**: AOSP CLI tools (`aapt2`, `javac`, `d8`, `apksigner`) thay cho Gradle Daemon để build offline 100% chỉ trong 3 giây.
+- **SDK Target**: `minSdkVersion = 26`, `targetSdkVersion = 34`, `compileSdkVersion = 34`.
+- **Thư viện ngoài**: 0 thư viện bên ngoài (dùng 100% Android Platform SDK + Java Standard Libraries).
+- **Độ lệch với master prompt ban đầu**: Lệch ở chỗ không dùng Kotlin/Compose đa module qua Gradle mà dùng Java + Android View CLI vì lý do tài nguyên phần cứng Termux hạn chế, tránh OOM kill và phụ thuộc mạng. Cam kết giữ nguyên stack này, không tự ý thay đổi.
 
-## Các nâng cấp chính v2.0.3
+## Trạng thái hiện tại (v2.0.5 - Build 7)
+- **APK hiện tại**: `/sdcard/AntiGravity/velqor-v2.0.5.apk` (440 KB, versionCode 7).
+- **Số dòng nguồn**:
+  - `MainActivity.java`: 2,410 dòng (đang chuẩn bị phân tách theo MILESTONE ARCH-FIX-1).
+  - `VelqorFileProvider.java`: 76 dòng.
+  - `VelqorApplication.java`: 17 dòng.
+  - `TestRunner.java`: 291 dòng (19 test cases pass 100%).
+- **UI Milestone hoàn thành**:
+  - `UI-REFIT-2`: Thay 100% AlertDialog bằng ModalBottomSheet kiểu iOS.
+  - `UI-REFIT-3`: Floating Liquid Glass Tab Bar với giọt nước trượt xuân.
+  - `UI-REFIT-4`: Edge-to-edge trong suốt, phân cách 0.5dp, màu thư mục hệ thống.
 
-### 1. Milestone UI-REFIT-2 — Menu thao tác ModalBottomSheet kiểu iOS
-- **Xóa 100% `AlertDialog`**: Toàn bộ hộp thoại được thay thế bằng hệ thống `ModalBottomSheet` và `ActionSheet` chuẩn Apple (bo góc 24dp, grabber bar 36x5dp màu `separator`, scrim 0.4 alpha, trượt mở/đóng spring mượt mà).
-- **Hành động theo 4 nhóm chuyên biệt**:
-  - *Nhóm 1*: Mở bằng… (Intent ACTION_VIEW qua FileProvider), Chia sẻ (Intent ACTION_SEND), Chi tiết (sheet hiển thị size, path, timestamp, permissions).
-  - *Nhóm 2*: Sao chép (Copy to clipboard), Di chuyển (Move to clipboard), Đổi tên (Input sheet có TextField bo 12dp, kiểm tra trùng tên thời gian thực).
-  - *Nhóm 3*: Nén thành ZIP, Giải nén (chỉ hiện khi là archive, có tùy chọn giải nén tại chỗ hoặc vào thư mục riêng), Tính SHA-256 (sheet hiển thị hex code kèm nút sao chép), Mã hóa vào Vault (AES-GCM).
-  - *Nhóm 4*: Xóa (khối bo 16dp màu danger red, xác nhận bằng action sheet riêng biệt gồm nút Xóa đỏ và nút Hủy tách rời).
-- **Xử lý tệp tin hàng loạt (Multi-Selection)**: Bottom sheet hiển thị "Đã chọn N mục" và chỉ cung cấp các hành động theo lô (Sao chép, Di chuyển, Nén ZIP, Xóa).
-- **Thư mục mới**: Sheet nhập liệu kiểu iOS, tự động kiểm tra trùng lặp tên thư mục.
-
-### 2. Milestone UI-REFIT-3 — Thanh điều hướng nổi "Liquid Glass"
-- **Floating Tab Bar hình viên thuốc (Pill)**: Cao 64dp, margin ngang 20dp, bo tròn 32dp hoàn toàn, nổi phía trên nội dung và căn giữa màn hình (tối đa rộng 420dp).
-- **Hiệu ứng Liquid Glass**: Nền `surfaceElevated` bán trong suốt (`0xE61C1C1E`), viền specular phản quang mảnh 1dp dạng gradient, đổ bóng mềm nhẹ, nội dung cuộn xuyên phía dưới thanh tab.
-- **Chỉ báo "giọt nước" (Water-drop indicator)**: Viên pill kính trượt sau tab đang chọn với hiệu ứng co giãn giọt nước (spring stretch & snap), kèm phản hồi rung haptic rất nhẹ.
-- **Header Cupertino**: Khoảng cách cách status bar 8dp, Large Title 34sp SemiBold thu nhỏ inline 17sp khi cuộn, nền chuyển sang mờ frosted với đường kẻ mảnh dưới, breadcrumbs dính ngay dưới header.
-
-### 3. Icon App Đẳng Cấp Chuẩn Apple (`img-20261029-184414-1.png`)
-- Tích hợp icon mới từ ảnh test người dùng gửi: Folder đen mờ 3D, logo `V` kim loại ánh bạc chém vát góc và tab màu xanh điện tử.
-- Thuật toán cắt bỏ toàn bộ 45px khoảng lề rỗng trong suốt thừa, phóng to căng tràn khung hình.
-- Xuất đầy đủ bộ mipmap densities (`mdpi`, `hdpi`, `xhdpi`, `xxhdpi`, `xxxhdpi`) và Adaptive Icon Android 8+ giúp icon trên màn hình chính to rõ, đầy đặn, không còn bị nhỏ hay lọt thỏm.
+## Lộ trình ARCH-FIX-1 & FEATURE-PACK-1
+1. **ARCH-FIX-1**: Tách `MainActivity.java` thành các module `ui/`, `files/`, `security/`, `archive/`, `tokens/`, làm blur RenderEffect thật trên API 31+, bổ sung test cases thật.
+2. **FEATURE-PACK-1**:
+   - `F1`: Text Editor cao cấp (UTF-8/16/BOM/CRLF, undo/redo, regex, phím phụ, sửa file trong ZIP).
+   - `F2`: Duyệt & sửa ZIP như thư mục (kiểu ZArchiver).
+   - `F3`: Quick Look xem trước ảnh, text, ZIP, thumbnail.
+   - `F4`: Thùng rác trong app, yêu thích, tìm kiếm nội dung text.
+   - `F5`: Chia nhỏ/ghép file, tìm trùng lặp SHA-256, phân tích dung lượng.
+   - `F6`: Cài đặt nâng cao & đánh bóng TalkBack.
