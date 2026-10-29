@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">VELQOR</string>
+    <string name="tab_browser">Tệp</string>
+    <string name="tab_archive">Nén &amp; Giải nén</string>
+    <string name="tab_vault">Kho bảo mật</string>
+    <string name="tab_tasks">Tác vụ</string>
+    <string name="tab_settings">Cài đặt</string>
+
+    <string name="permission_storage_title">Quyền Quản lý Tệp tin</string>
+    <string name="permission_storage_desc">VELQOR cần quyền truy cập bộ nhớ để duyệt thư mục, nén, giải nén và bảo mật tệp của bạn với tốc độ cao nhất.</string>
+    <string name="permission_storage_grant">Cấp quyền ngay</string>
+    <string name="permission_denied_message">Cần quyền quản lý bộ nhớ để sử dụng các tính năng tệp.</string>
+</resources>

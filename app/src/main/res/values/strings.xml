@@ -1,0 +1,13 @@
+<resources>
+    <string name="app_name">VELQOR</string>
+    <string name="tab_browser">Files</string>
+    <string name="tab_archive">Archive</string>
+    <string name="tab_vault">Vault</string>
+    <string name="tab_tasks">Tasks</string>
+    <string name="tab_settings">Settings</string>
+
+    <string name="permission_storage_title">All Files Access</string>
+    <string name="permission_storage_desc">VELQOR needs file management permissions to browse, compress, extract, and secure your files.</string>
+    <string name="permission_storage_grant">Grant Access</string>
+    <string name="permission_denied_message">Storage permission is required to manage files.</string>
+</resources>
