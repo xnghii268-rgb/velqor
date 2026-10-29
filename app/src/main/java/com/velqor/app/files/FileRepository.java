@@ -20,7 +20,8 @@ public final class FileRepository {
     }
 
     public static List<File> listFiles(File dir, boolean showHidden, int sortField, boolean sortAsc) {
-        if (dir == null || !dir.exists()) return Collections.emptyList();
+        if (dir == null) return Collections.emptyList();
+        if (!WirelessDebugManager.isAndroidDataPath(dir) && !dir.exists()) return Collections.emptyList();
         File[] filesArr;
         if (WirelessDebugManager.isAndroidDataPath(dir)) {
             filesArr = WirelessDebugManager.listAndroidDataArray(dir);

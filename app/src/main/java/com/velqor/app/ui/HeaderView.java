@@ -15,6 +15,7 @@ import android.widget.LinearLayout;
 import android.widget.TextView;
 
 import com.velqor.app.R;
+import com.velqor.app.files.WirelessDebugManager;
 import com.velqor.app.tokens.ThemeTokens;
 
 import java.io.File;
@@ -280,8 +281,10 @@ public class HeaderView extends LinearLayout {
 
             chip.setOnClickListener(v -> {
                 File target = new File(p.fullPath);
-                if (target.exists() && target.isDirectory() && mListener != null) {
-                    mListener.onBreadcrumbClick(target);
+                if (mListener != null) {
+                    if (WirelessDebugManager.isAndroidDataPath(target) || (target.exists() && target.isDirectory())) {
+                        mListener.onBreadcrumbClick(target);
+                    }
                 }
             });
 

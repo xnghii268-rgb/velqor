@@ -2686,7 +2686,7 @@ public class MainActivity extends Activity {
         
         if (mCurrentDir != null && !isStorageRoot(mCurrentDir)) {
             File parent = mCurrentDir.getParentFile();
-            if (parent != null && parent.canRead()) {
+            if (parent != null && (WirelessDebugManager.isAndroidDataPath(mCurrentDir) || parent.canRead())) {
                 mCurrentDir = parent;
                 refreshDirectory();
                 if (mScrollView != null) {
@@ -2722,6 +2722,8 @@ public class MainActivity extends Activity {
         }
 
         File parent = dir.getParentFile();
-        return parent == null || !parent.canRead();
+        if (parent == null) return true;
+        if (WirelessDebugManager.isAndroidDataPath(dir)) return false;
+        return !parent.canRead();
     }
 }
