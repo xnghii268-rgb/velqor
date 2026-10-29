@@ -1,8 +1,5 @@
 package com.velqor.app.ui;
 
-import android.animation.Animator;
-import android.animation.AnimatorListenerAdapter;
-import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
@@ -12,14 +9,15 @@ import android.graphics.Path;
 import android.graphics.RectF;
 import android.graphics.Shader;
 import android.os.Build;
+import android.view.Choreographer;
 import android.view.Gravity;
 import android.view.HapticFeedbackConstants;
 import android.view.MotionEvent;
+import android.view.VelocityTracker;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
-import android.view.animation.LinearInterpolator;
-import android.view.animation.OvershootInterpolator;
+import android.view.accessibility.AccessibilityNodeInfo;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
 import android.widget.LinearLayout;
@@ -37,8 +35,9 @@ public class FloatingTabBar extends FrameLayout {
     }
 
     private BlurBackdropView mBackdropView;
-    private WaterDropView mWaterDropIndicator;
-    private final List<View> mTabViews = new ArrayList<>();
+    private LiquidCapsuleView mLiquidCapsule;
+    private LinearLayout mTabsRow;
+    private final List<FrameLayout> mTabViews = new ArrayList<>();
     private final String[] mTabKeys = {"files", "archive", "settings"};
     private final int[] mOutlineIcons = {
             R.drawable.ic_tab_folder_outline,
@@ -59,7 +58,22 @@ public class FloatingTabBar extends FrameLayout {
     private String mCurrentTab = "files";
     private int mCurrentIndex = 0;
     private OnTabSelectedListener mListener;
-    private ValueAnimator mIndicatorAnimator;
+
+    private final SpringSolver mPositionSpring = new SpringSolver(1.0f, 220.0f, 20.0f);
+    private final SpringSolver mScaleSpring = new SpringSolver(1.0f, 280.0f, 22.0f);
+    private boolean mIsSpringActive = false;
+    private long mLastFrameNanos = 0;
+    private Choreographer.FrameCallback mFrameCallback;
+
+    private VelocityTracker mVelocityTracker;
+    private float mTouchDownX = 0f;
+    private float mTouchDownY = 0f;
+    private boolean mIsDragging = false;
+    private int mLastHoveredIndex = 0;
+
+    private final Paint mAmbientShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final Paint mKeyShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+    private final RectF mBarRect = new RectF();
 
     public FloatingTabBar(Context context) {
         super(context);
@@ -72,8 +86,10 @@ public class FloatingTabBar extends FrameLayout {
         setClipChildren(false);
         setClipToPadding(false);
 
+        mAmbientShadowPaint.setStyle(Paint.Style.FILL);
+        mKeyShadowPaint.setStyle(Paint.Style.FILL);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            setElevation(ThemeTokens.dp(getContext(), ThemeTokens.ELEVATION_FLOATING_BAR));
             setOutlineProvider(new ViewOutlineProvider() {
                 @Override
                 public void getOutline(View view, Outline outline) {
@@ -82,41 +98,92 @@ public class FloatingTabBar extends FrameLayout {
                 }
             });
         }
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            setOutlineAmbientShadowColor(0x20000000);
-            setOutlineSpotShadowColor(0x26000000);
-        }
 
         mBackdropView = new BlurBackdropView(getContext());
         mBackdropView.setCornerRadius(ThemeTokens.dp(getContext(), ThemeTokens.RADIUS_TAB_BAR));
         addView(mBackdropView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        mWaterDropIndicator = new WaterDropView(getContext());
+        mLiquidCapsule = new LiquidCapsuleView(getContext());
         int dropHeight = ThemeTokens.dp(getContext(), 42);
         int dropWidth = ThemeTokens.dp(getContext(), 58);
         FrameLayout.LayoutParams dropLp = new FrameLayout.LayoutParams(dropWidth, dropHeight);
         dropLp.gravity = Gravity.CENTER_VERTICAL;
-        addView(mWaterDropIndicator, dropLp);
+        addView(mLiquidCapsule, dropLp);
 
-        LinearLayout row = new LinearLayout(getContext());
-        row.setOrientation(LinearLayout.HORIZONTAL);
-        row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setClipChildren(false);
-        row.setClipToPadding(false);
-        row.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        mTabsRow = new LinearLayout(getContext());
+        mTabsRow.setOrientation(LinearLayout.HORIZONTAL);
+        mTabsRow.setGravity(Gravity.CENTER_VERTICAL);
+        mTabsRow.setClipChildren(false);
+        mTabsRow.setClipToPadding(false);
+        mTabsRow.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mTabViews.clear();
         for (int i = 0; i < mTabKeys.length; i++) {
-            View tabView = createTabItem(mOutlineIcons[i], mFilledIcons[i], mContentDescriptions[i], mTabKeys[i], i);
+            FrameLayout tabView = createTabItem(mOutlineIcons[i], mFilledIcons[i], mContentDescriptions[i], mTabKeys[i], i);
             mTabViews.add(tabView);
-            row.addView(tabView);
+            mTabsRow.addView(tabView);
         }
-        addView(row);
+        addView(mTabsRow);
+
+        mFrameCallback = new Choreographer.FrameCallback() {
+            @Override
+            public void doFrame(long frameTimeNanos) {
+                if (mLastFrameNanos == 0) {
+                    mLastFrameNanos = frameTimeNanos;
+                }
+                float dt = (frameTimeNanos - mLastFrameNanos) / 1_000_000_000.0f;
+                mLastFrameNanos = frameTimeNanos;
+
+                float currentX = mPositionSpring.update(dt);
+                float currentScale = mScaleSpring.update(dt);
+
+                mLiquidCapsule.setTranslationX(currentX);
+
+                float velocity = mPositionSpring.getVelocity();
+                float stretch = Math.min(0.24f, Math.abs(velocity) / 3600.0f);
+                float sx = currentScale * (1.0f + stretch);
+                float sy = currentScale * (1.0f / (1.0f + stretch));
+                mLiquidCapsule.setScaleX(sx);
+                mLiquidCapsule.setScaleY(sy);
+
+                mLiquidCapsule.setBridgeOffset(velocity * 0.008f);
+
+                if (!mPositionSpring.isAtRest() || !mScaleSpring.isAtRest() || mIsDragging) {
+                    Choreographer.getInstance().postFrameCallback(this);
+                } else {
+                    mIsSpringActive = false;
+                    mLastFrameNanos = 0;
+                    mLiquidCapsule.setScaleX(1.0f);
+                    mLiquidCapsule.setScaleY(1.0f);
+                    mLiquidCapsule.setBridgeOffset(0f);
+                }
+            }
+        };
+
+        mScaleSpring.setValue(1.0f);
+        mScaleSpring.setTarget(1.0f);
 
         post(() -> {
-            adjustIndicatorWidth(0);
-            animateIndicatorToTab(0, false);
+            snapToTabInstant(0);
         });
+    }
+
+    @Override
+    protected void onAttachedToWindow() {
+        super.onAttachedToWindow();
+    }
+
+    @Override
+    protected void onDetachedFromWindow() {
+        super.onDetachedFromWindow();
+        if (mIsSpringActive) {
+            Choreographer.getInstance().removeFrameCallback(mFrameCallback);
+            mIsSpringActive = false;
+        }
+        if (mVelocityTracker != null) {
+            mVelocityTracker.recycle();
+            mVelocityTracker = null;
+        }
     }
 
     public void setBackdropSource(View target) {
@@ -141,7 +208,7 @@ public class FloatingTabBar extends FrameLayout {
                 if (!mCurrentTab.equals(tabKey)) {
                     mCurrentTab = tabKey;
                     mCurrentIndex = i;
-                    animateIndicatorToTab(i, true);
+                    animateIndicatorToTab(i);
                     updateTabSelectionState(true);
                 }
                 break;
@@ -149,7 +216,44 @@ public class FloatingTabBar extends FrameLayout {
         }
     }
 
-    private View createTabItem(int outlineIconRes, int filledIconRes, String contentDesc, String tabKey, int index) {
+    private void snapToTabInstant(int index) {
+        if (index < 0 || index >= mTabViews.size()) return;
+        View targetTab = mTabViews.get(index);
+        int dropW = mLiquidCapsule.getWidth() > 0 ? mLiquidCapsule.getWidth() : ThemeTokens.dp(getContext(), 58);
+        int targetX = targetTab.getLeft() + (targetTab.getWidth() - dropW) / 2;
+        mPositionSpring.setValue(targetX);
+        mPositionSpring.setTarget(targetX);
+        mPositionSpring.setVelocity(0f);
+        mLiquidCapsule.setTranslationX(targetX);
+    }
+
+    private void animateIndicatorToTab(int index) {
+        if (index < 0 || index >= mTabViews.size()) return;
+        View targetTab = mTabViews.get(index);
+        int dropW = mLiquidCapsule.getWidth() > 0 ? mLiquidCapsule.getWidth() : ThemeTokens.dp(getContext(), 58);
+        int targetX = targetTab.getLeft() + (targetTab.getWidth() - dropW) / 2;
+
+        mPositionSpring.setTarget(targetX);
+        startSpringLoop();
+
+        FrameLayout iconBox = (FrameLayout) ((FrameLayout) targetTab).getChildAt(0);
+        iconBox.animate()
+                .scaleX(1.18f)
+                .scaleY(1.18f)
+                .setDuration(120)
+                .withEndAction(() -> iconBox.animate().scaleX(1.0f).scaleY(1.0f).setDuration(160).start())
+                .start();
+    }
+
+    private void startSpringLoop() {
+        if (!mIsSpringActive) {
+            mIsSpringActive = true;
+            mLastFrameNanos = 0;
+            Choreographer.getInstance().postFrameCallback(mFrameCallback);
+        }
+    }
+
+    private FrameLayout createTabItem(int outlineIconRes, int filledIconRes, String contentDesc, String tabKey, int index) {
         FrameLayout item = new FrameLayout(getContext());
         item.setClipChildren(false);
         item.setClipToPadding(false);
@@ -179,38 +283,12 @@ public class FloatingTabBar extends FrameLayout {
 
         item.addView(iconBox);
 
-        item.setOnTouchListener((v, event) -> {
-            switch (event.getAction()) {
-                case MotionEvent.ACTION_DOWN:
-                    if (index == mCurrentIndex) {
-                        mWaterDropIndicator.animate()
-                                .scaleX(1.07f)
-                                .scaleY(0.93f)
-                                .setDuration(90)
-                                .start();
-                    }
-                    break;
-                case MotionEvent.ACTION_UP:
-                case MotionEvent.ACTION_CANCEL:
-                    if (index == mCurrentIndex) {
-                        mWaterDropIndicator.animate()
-                                .scaleX(1.0f)
-                                .scaleY(1.0f)
-                                .setDuration(200)
-                                .setInterpolator(new OvershootInterpolator(1.4f))
-                                .start();
-                    }
-                    break;
-            }
-            return false;
-        });
-
         item.setOnClickListener(v -> {
             if (!mCurrentTab.equals(tabKey)) {
                 performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
                 mCurrentTab = tabKey;
                 mCurrentIndex = index;
-                animateIndicatorToTab(index, true);
+                animateIndicatorToTab(index);
                 updateTabSelectionState(true);
                 if (mListener != null) {
                     mListener.onTabSelected(tabKey, index);
@@ -218,12 +296,23 @@ public class FloatingTabBar extends FrameLayout {
             }
         });
 
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            item.setAccessibilityDelegate(new AccessibilityDelegate() {
+                @Override
+                public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                    super.onInitializeAccessibilityNodeInfo(host, info);
+                    info.setClassName("android.widget.TabWidget");
+                    info.setSelected(mCurrentTab.equals(tabKey));
+                }
+            });
+        }
+
         return item;
     }
 
     public void updateTabSelectionState(boolean animated) {
         for (int i = 0; i < mTabViews.size(); i++) {
-            FrameLayout item = (FrameLayout) mTabViews.get(i);
+            FrameLayout item = mTabViews.get(i);
             String tabKey = mTabKeys[i];
             boolean isSelected = mCurrentTab.equals(tabKey);
 
@@ -244,127 +333,156 @@ public class FloatingTabBar extends FrameLayout {
         }
     }
 
-    private void adjustIndicatorWidth(int index) {
-        if (index >= 0 && index < mTabViews.size()) {
-            View tab = mTabViews.get(index);
-            if (tab.getWidth() > 0) {
-                int dropW = Math.min(tab.getWidth() - ThemeTokens.dp(getContext(), 16), ThemeTokens.dp(getContext(), 58));
-                int dropH = ThemeTokens.dp(getContext(), 42);
-                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mWaterDropIndicator.getLayoutParams();
-                if (lp != null && (lp.width != dropW || lp.height != dropH)) {
-                    lp.width = dropW;
-                    lp.height = dropH;
-                    mWaterDropIndicator.setLayoutParams(lp);
-                }
-            }
-        }
+    @Override
+    public boolean onInterceptTouchEvent(MotionEvent ev) {
+        return true;
     }
 
-    public void animateIndicatorToTab(int index, boolean animate) {
-        if (index < 0 || index >= mTabViews.size()) return;
-        View targetTab = mTabViews.get(index);
-        adjustIndicatorWidth(index);
-
-        int dropW = mWaterDropIndicator.getWidth() > 0 ? mWaterDropIndicator.getWidth() : ThemeTokens.dp(getContext(), 58);
-        int targetX = targetTab.getLeft() + (targetTab.getWidth() - dropW) / 2;
-
-        if (mIndicatorAnimator != null && mIndicatorAnimator.isRunning()) {
-            mIndicatorAnimator.cancel();
+    @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        if (mVelocityTracker == null) {
+            mVelocityTracker = VelocityTracker.obtain();
         }
+        mVelocityTracker.addMovement(event);
 
-        if (animate) {
-            float startX = mWaterDropIndicator.getTranslationX();
-            float distance = targetX - startX;
+        float x = event.getX();
+        float y = event.getY();
 
-            if (Math.abs(distance) < 1.0f) {
-                mWaterDropIndicator.setTranslationX(targetX);
-                mWaterDropIndicator.setScaleX(1.0f);
-                mWaterDropIndicator.setScaleY(1.0f);
-                return;
-            }
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                mTouchDownX = x;
+                mTouchDownY = y;
+                mIsDragging = false;
+                mScaleSpring.setTarget(1.12f);
+                startSpringLoop();
+                performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP);
+                return true;
 
-            mIndicatorAnimator = ValueAnimator.ofFloat(0f, 1f);
-            mIndicatorAnimator.setDuration(290);
-            mIndicatorAnimator.setInterpolator(new LinearInterpolator());
-            mIndicatorAnimator.addUpdateListener(animation -> {
-                float t = (Float) animation.getAnimatedValue();
+            case MotionEvent.ACTION_MOVE:
+                float dx = Math.abs(x - mTouchDownX);
+                if (dx > ThemeTokens.dp(getContext(), 8)) {
+                    mIsDragging = true;
+                }
+                if (mIsDragging) {
+                    int dropW = mLiquidCapsule.getWidth() > 0 ? mLiquidCapsule.getWidth() : ThemeTokens.dp(getContext(), 58);
+                    float targetIndicatorX = x - dropW / 2f;
 
-                float easedProgress = t < 0.5f ? 4.0f * t * t * t : 1.0f - (float) Math.pow(-2.0f * t + 2.0f, 3.0) / 2.0f;
-                float currentX = startX + distance * easedProgress;
-                mWaterDropIndicator.setTranslationX(currentX);
+                    float maxRange = getWidth() - dropW;
+                    float clampedX = SpringSolver.applyRubberBand(targetIndicatorX, maxRange, getWidth() * 0.4f);
 
-                float sx;
-                float sy;
-                if (t <= 0.62f) {
-                    float flightPhase = t / 0.62f;
-                    float stretchWave = (float) Math.sin(flightPhase * Math.PI);
-                    float maxStretch = Math.min(0.25f, 0.12f + Math.abs(distance) / 1000f);
-                    sx = 1.0f + maxStretch * stretchWave;
-                    sy = 1.0f - (maxStretch * 0.50f) * stretchWave;
+                    mPositionSpring.setValue(clampedX);
+                    mPositionSpring.setTarget(clampedX);
+                    startSpringLoop();
+
+                    int hoveredIndex = computeHoveredTab(x);
+                    if (hoveredIndex != mLastHoveredIndex && hoveredIndex >= 0 && hoveredIndex < mTabViews.size()) {
+                        mLastHoveredIndex = hoveredIndex;
+                        performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK);
+                        lensZoomTab(hoveredIndex);
+                    }
+                }
+                return true;
+
+            case MotionEvent.ACTION_UP:
+            case MotionEvent.ACTION_CANCEL:
+                mScaleSpring.setTarget(1.0f);
+                if (mIsDragging) {
+                    mVelocityTracker.computeCurrentVelocity(1000);
+                    float vx = mVelocityTracker.getXVelocity();
+
+                    float[] tabCenters = new float[mTabViews.size()];
+                    int dropW = mLiquidCapsule.getWidth() > 0 ? mLiquidCapsule.getWidth() : ThemeTokens.dp(getContext(), 58);
+                    for (int i = 0; i < mTabViews.size(); i++) {
+                        View tv = mTabViews.get(i);
+                        tabCenters[i] = tv.getLeft() + (tv.getWidth() - dropW) / 2f;
+                    }
+
+                    int snapIndex = SpringSolver.computeSnapIndex(mPositionSpring.getValue(), vx, tabCenters);
+                    snapIndex = Math.max(0, Math.min(mTabKeys.length - 1, snapIndex));
+
+                    mPositionSpring.setVelocity(vx);
+                    mCurrentIndex = snapIndex;
+                    mCurrentTab = mTabKeys[snapIndex];
+                    animateIndicatorToTab(snapIndex);
+                    updateTabSelectionState(true);
+
+                    performHapticFeedback(HapticFeedbackConstants.CONFIRM);
+                    if (mListener != null) {
+                        mListener.onTabSelected(mCurrentTab, snapIndex);
+                    }
                 } else {
-                    float settlePhase = (t - 0.62f) / 0.38f;
-                    float squashWave = (float) (Math.sin(settlePhase * Math.PI * 1.5) * Math.exp(-settlePhase * 3.2));
-                    sx = 1.0f - 0.10f * squashWave;
-                    sy = 1.0f + 0.07f * squashWave;
+                    int clickIndex = computeHoveredTab(x);
+                    if (clickIndex >= 0 && clickIndex < mTabKeys.length) {
+                        if (!mCurrentTab.equals(mTabKeys[clickIndex])) {
+                            mCurrentTab = mTabKeys[clickIndex];
+                            mCurrentIndex = clickIndex;
+                            animateIndicatorToTab(clickIndex);
+                            updateTabSelectionState(true);
+                            if (mListener != null) {
+                                mListener.onTabSelected(mCurrentTab, clickIndex);
+                            }
+                        }
+                    }
                 }
-                mWaterDropIndicator.setScaleX(sx);
-                mWaterDropIndicator.setScaleY(sy);
-            });
-
-            mIndicatorAnimator.addListener(new AnimatorListenerAdapter() {
-                @Override
-                public void onAnimationEnd(Animator animation) {
-                    mWaterDropIndicator.setTranslationX(targetX);
-                    mWaterDropIndicator.setScaleX(1.0f);
-                    mWaterDropIndicator.setScaleY(1.0f);
+                mIsDragging = false;
+                if (mVelocityTracker != null) {
+                    mVelocityTracker.recycle();
+                    mVelocityTracker = null;
                 }
+                return true;
+        }
+        return super.onTouchEvent(event);
+    }
 
-                @Override
-                public void onAnimationCancel(Animator animation) {
-                    mWaterDropIndicator.setTranslationX(targetX);
-                    mWaterDropIndicator.setScaleX(1.0f);
-                    mWaterDropIndicator.setScaleY(1.0f);
-                }
-            });
+    private int computeHoveredTab(float touchX) {
+        for (int i = 0; i < mTabViews.size(); i++) {
+            View tv = mTabViews.get(i);
+            if (touchX >= tv.getLeft() && touchX <= tv.getRight()) {
+                return i;
+            }
+        }
+        return mCurrentIndex;
+    }
 
-            mIndicatorAnimator.start();
-
-            FrameLayout iconBox = (FrameLayout) ((FrameLayout) targetTab).getChildAt(0);
-            iconBox.animate()
-                    .scaleX(1.16f)
-                    .scaleY(1.16f)
-                    .setDuration(120)
-                    .withEndAction(() -> iconBox.animate()
-                            .scaleX(1.0f)
-                            .scaleY(1.0f)
-                            .setDuration(170)
-                            .setInterpolator(new OvershootInterpolator(1.6f))
-                            .start())
-                    .start();
-        } else {
-            mWaterDropIndicator.setTranslationX(targetX);
-            mWaterDropIndicator.setScaleX(1.0f);
-            mWaterDropIndicator.setScaleY(1.0f);
+    private void lensZoomTab(int index) {
+        for (int i = 0; i < mTabViews.size(); i++) {
+            FrameLayout item = mTabViews.get(i);
+            FrameLayout iconBox = (FrameLayout) item.getChildAt(0);
+            if (i == index) {
+                iconBox.animate().scaleX(1.14f).scaleY(1.14f).setDuration(90).start();
+            } else {
+                iconBox.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start();
+            }
         }
     }
 
-    private static class WaterDropView extends View {
+    private static class LiquidCapsuleView extends View {
         private final Paint mBodyPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mHighlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mBottomGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint mBridgePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+
         private final RectF mRect = new RectF();
         private final Path mClipPath = new Path();
+        private final Path mBridgePath = new Path();
+        private float mBridgeOffset = 0f;
 
-        public WaterDropView(Context context) {
+        public LiquidCapsuleView(Context context) {
             super(context);
             mBodyPaint.setStyle(Paint.Style.FILL);
             mHighlightPaint.setStyle(Paint.Style.FILL);
             mBottomGlowPaint.setStyle(Paint.Style.FILL);
+            mBridgePaint.setStyle(Paint.Style.FILL);
 
             mStrokePaint.setStyle(Paint.Style.STROKE);
             float strokeW = Math.max(1f, ThemeTokens.dp(context, 1) * 0.75f);
             mStrokePaint.setStrokeWidth(strokeW);
+        }
+
+        public void setBridgeOffset(float offset) {
+            this.mBridgeOffset = offset;
+            invalidate();
         }
 
         @Override
@@ -380,39 +498,40 @@ public class FloatingTabBar extends FrameLayout {
                 int accent = ThemeTokens.getAccentColor(ctx);
                 boolean isDark = ThemeTokens.isDarkMode(ctx);
 
-                int bodyTopAlpha = isDark ? 0x38000000 : 0x2C000000;
-                int bodyBottomAlpha = isDark ? 0x16000000 : 0x14000000;
+                int bodyTopAlpha = isDark ? 0x48000000 : 0x36000000;
+                int bodyBottomAlpha = isDark ? 0x1A000000 : 0x14000000;
                 LinearGradient bodyShader = new LinearGradient(
                         0, 0, 0, h,
-                        new int[]{ (accent & 0x00FFFFFF) | bodyTopAlpha, (accent & 0x00FFFFFF) | bodyBottomAlpha },
+                        new int[]{(accent & 0x00FFFFFF) | bodyTopAlpha, (accent & 0x00FFFFFF) | bodyBottomAlpha},
                         null,
                         Shader.TileMode.CLAMP
                 );
                 mBodyPaint.setShader(bodyShader);
+                mBridgePaint.setColor((accent & 0x00FFFFFF) | (isDark ? 0x2E000000 : 0x22000000));
 
-                int hlTop = isDark ? 0x48FFFFFF : 0x36FFFFFF;
+                int hlTop = isDark ? 0x68FFFFFF : 0x4EFFFFFF;
                 LinearGradient hlShader = new LinearGradient(
-                        0, 0, 0, h * 0.48f,
-                        new int[]{ hlTop, 0x00FFFFFF },
+                        0, 0, 0, h * 0.45f,
+                        new int[]{hlTop, 0x00FFFFFF},
                         null,
                         Shader.TileMode.CLAMP
                 );
                 mHighlightPaint.setShader(hlShader);
 
-                int glowColor = (accent & 0x00FFFFFF) | (isDark ? 0x22000000 : 0x18000000);
+                int glowColor = (accent & 0x00FFFFFF) | (isDark ? 0x30000000 : 0x24000000);
                 LinearGradient glowShader = new LinearGradient(
-                        0, h * 0.65f, 0, h,
-                        new int[]{ 0x00000000, glowColor },
+                        0, h * 0.62f, 0, h,
+                        new int[]{0x00000000, glowColor},
                         null,
                         Shader.TileMode.CLAMP
                 );
                 mBottomGlowPaint.setShader(glowShader);
 
-                int strokeTop = isDark ? 0x60FFFFFF : 0x38000000;
-                int strokeBottom = isDark ? 0x18FFFFFF : 0x12000000;
+                int strokeTop = isDark ? 0x75FFFFFF : 0x48FFFFFF;
+                int strokeBottom = isDark ? 0x1EFFFFFF : 0x14000000;
                 LinearGradient strokeShader = new LinearGradient(
                         0, 0, 0, h,
-                        new int[]{ strokeTop, strokeBottom },
+                        new int[]{strokeTop, strokeBottom},
                         null,
                         Shader.TileMode.CLAMP
                 );
@@ -425,11 +544,24 @@ public class FloatingTabBar extends FrameLayout {
             super.onDraw(canvas);
             float rad = getHeight() / 2f;
 
+            if (Math.abs(mBridgeOffset) > 1.0f) {
+                mBridgePath.reset();
+                float cx = getWidth() / 2f;
+                float cy = getHeight() / 2f;
+                float tailX = cx - mBridgeOffset * 2.8f;
+                mBridgePath.moveTo(cx, cy - rad * 0.65f);
+                mBridgePath.quadTo(cx - mBridgeOffset * 0.8f, cy, tailX, cy - rad * 0.3f);
+                mBridgePath.lineTo(tailX, cy + rad * 0.3f);
+                mBridgePath.quadTo(cx - mBridgeOffset * 0.8f, cy, cx, cy + rad * 0.65f);
+                mBridgePath.close();
+                canvas.drawPath(mBridgePath, mBridgePaint);
+            }
+
             canvas.save();
             canvas.clipPath(mClipPath);
             canvas.drawRect(mRect, mBodyPaint);
-            canvas.drawRect(0, 0, getWidth(), getHeight() * 0.48f, mHighlightPaint);
-            canvas.drawRect(0, getHeight() * 0.65f, getWidth(), getHeight(), mBottomGlowPaint);
+            canvas.drawRect(0, 0, getWidth(), getHeight() * 0.45f, mHighlightPaint);
+            canvas.drawRect(0, getHeight() * 0.62f, getWidth(), getHeight(), mBottomGlowPaint);
             canvas.restore();
 
             float half = mStrokePaint.getStrokeWidth() / 2f;

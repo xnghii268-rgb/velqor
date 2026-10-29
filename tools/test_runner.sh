@@ -14,6 +14,7 @@ javac -d "$PROJECT_ROOT/build/test_classes" \
   "$PROJECT_ROOT"/app/src/main/java/com/velqor/app/tokens/*.java \
   "$PROJECT_ROOT"/app/src/main/java/com/velqor/app/archive/*.java \
   "$PROJECT_ROOT"/app/src/main/java/com/velqor/app/files/*.java \
+  "$PROJECT_ROOT"/app/src/main/java/com/velqor/app/ui/SpringSolver.java \
   "$PROJECT_ROOT"/tools/TestRunner.java
 
 java -cp "$HOME/.android-sdk/platforms/android-34/android.jar:$PROJECT_ROOT/build/test_classes:$PROJECT_ROOT/build/libs/*" tools.TestRunner

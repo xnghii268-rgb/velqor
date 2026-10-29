@@ -15,13 +15,12 @@ import com.velqor.app.tokens.ThemeTokens;
 public class BlurBackdropView extends View {
     private View mTargetView;
     private float mCornerRadius;
-    private int mStrokeWidth = 2; 
+    private int mStrokeWidth = 2;
     private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Path mClipPath = new Path();
     private final RectF mRect = new RectF();
 
-    
     private Object mRenderNode;
     private Object mBlurEffect;
     private boolean mBlurInitialized = false;
@@ -56,7 +55,6 @@ public class BlurBackdropView extends View {
         mRect.set(0, 0, w, h);
         updateClipPath();
 
-        
         if (w > 0 && h > 0) {
             boolean isDark = ThemeTokens.isDarkMode(getContext());
             int rimStart = isDark ? ThemeTokens.COLOR_RIM_START : 0x4D000000;
@@ -87,7 +85,6 @@ public class BlurBackdropView extends View {
 
         boolean blurredSuccessfully = false;
 
-        
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && canvas.isHardwareAccelerated() && mTargetView != null && !mIsRenderingBackdrop) {
             try {
                 if (!mBlurInitialized) {
@@ -101,7 +98,6 @@ public class BlurBackdropView extends View {
 
                     android.graphics.RecordingCanvas recordingCanvas = node.beginRecording();
 
-                    
                     int[] locTarget = new int[2];
                     int[] locThis = new int[2];
                     mTargetView.getLocationInWindow(locTarget);
@@ -117,7 +113,6 @@ public class BlurBackdropView extends View {
 
                     canvas.drawRenderNode(node);
 
-                    
                     boolean isDark = ThemeTokens.isDarkMode(getContext());
                     mPaint.setColor(isDark ? 0xC01C1C1E : 0xC0FFFFFF);
                     canvas.drawRect(mRect, mPaint);
@@ -141,7 +136,6 @@ public class BlurBackdropView extends View {
 
         canvas.restore();
 
-        
         float halfStroke = mStrokeWidth / 2f;
         RectF strokeRect = new RectF(halfStroke, halfStroke, getWidth() - halfStroke, getHeight() - halfStroke);
         canvas.drawRoundRect(strokeRect, mCornerRadius - halfStroke, mCornerRadius - halfStroke, mStrokePaint);

@@ -7,6 +7,7 @@ import android.graphics.Color;
 import android.graphics.Paint;
 import android.graphics.RectF;
 import android.view.HapticFeedbackConstants;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.animation.DecelerateInterpolator;
 
@@ -20,6 +21,7 @@ public class IosSwitchView extends View {
 
     private boolean mIsChecked = false;
     private float mThumbPosition = 0.0f;
+    private float mThumbScaleX = 1.0f;
     private ValueAnimator mAnimator;
     private OnCheckedChangeListener mListener;
 
@@ -27,6 +29,7 @@ public class IosSwitchView extends View {
     private final Paint mThumbPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final Paint mShadowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
     private final RectF mTrackRect = new RectF();
+    private final RectF mThumbRect = new RectF();
 
     public IosSwitchView(Context context) {
         super(context);
@@ -43,8 +46,6 @@ public class IosSwitchView extends View {
 
         mShadowPaint.setStyle(Paint.Style.FILL);
         mShadowPaint.setColor(0x33000000);
-
-        setOnClickListener(v -> toggle());
     }
 
     public void setChecked(boolean checked) {
@@ -89,6 +90,25 @@ public class IosSwitchView extends View {
     }
 
     @Override
+    public boolean onTouchEvent(MotionEvent event) {
+        switch (event.getActionMasked()) {
+            case MotionEvent.ACTION_DOWN:
+                mThumbScaleX = 1.2f;
+                invalidate();
+                return true;
+            case MotionEvent.ACTION_UP:
+                mThumbScaleX = 1.0f;
+                toggle();
+                return true;
+            case MotionEvent.ACTION_CANCEL:
+                mThumbScaleX = 1.0f;
+                invalidate();
+                return true;
+        }
+        return super.onTouchEvent(event);
+    }
+
+    @Override
     protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
         int w = ThemeTokens.dp(getContext(), 51);
         int h = ThemeTokens.dp(getContext(), 31);
@@ -124,7 +144,14 @@ public class IosSwitchView extends View {
         float thumbCenterX = minX + (maxX - minX) * mThumbPosition;
         float thumbCenterY = h / 2f;
 
-        canvas.drawCircle(thumbCenterX, thumbCenterY + ThemeTokens.dp(getContext(), 1), thumbRadius, mShadowPaint);
-        canvas.drawCircle(thumbCenterX, thumbCenterY, thumbRadius, mThumbPaint);
+        float scaledRadiusX = thumbRadius * mThumbScaleX;
+
+        mThumbRect.set(thumbCenterX - scaledRadiusX, thumbCenterY - thumbRadius + ThemeTokens.dp(getContext(), 1),
+                thumbCenterX + scaledRadiusX, thumbCenterY + thumbRadius + ThemeTokens.dp(getContext(), 1));
+        canvas.drawRoundRect(mThumbRect, thumbRadius, thumbRadius, mShadowPaint);
+
+        mThumbRect.set(thumbCenterX - scaledRadiusX, thumbCenterY - thumbRadius,
+                thumbCenterX + scaledRadiusX, thumbCenterY + thumbRadius);
+        canvas.drawRoundRect(mThumbRect, thumbRadius, thumbRadius, mThumbPaint);
     }
 }

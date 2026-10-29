@@ -6,7 +6,7 @@ PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 BUILD_DIR="$PROJECT_ROOT/build"
 ANDROID_JAR="$HOME/.android-sdk/platforms/android-34/android.jar"
 KEYSTORE="$BUILD_DIR/debug.keystore"
-APK_OUT="/sdcard/AntiGravity/velqor-v2.1.3.apk"
+APK_OUT="/sdcard/AntiGravity/velqor-v2.2.0.apk"
 
 mkdir -p "$BUILD_DIR/aapt_res" "$BUILD_DIR/gen_r" "$BUILD_DIR/classes" "$BUILD_DIR/dex"
 
@@ -16,10 +16,10 @@ aapt2 link -I "$ANDROID_JAR" \
   --manifest "$PROJECT_ROOT/app/src/main/AndroidManifest.xml" \
   --min-sdk-version 26 \
   --target-sdk-version 34 \
-  --version-code 18 \
-  --version-name "2.1.3" \
+  --version-code 19 \
+  --version-name "2.2.0" \
   --java "$BUILD_DIR/gen_r" \
-  -o "$BUILD_DIR/resources_v213.apk" \
+  -o "$BUILD_DIR/resources_v220.apk" \
   "$BUILD_DIR/aapt_res/compiled.zip" \
   --auto-add-overlay
 
@@ -36,13 +36,13 @@ javac -d "$BUILD_DIR/classes" \
 rm -rf "$BUILD_DIR/dex"/*
 find "$BUILD_DIR/classes" -name "*.class" | xargs d8 --release --min-api 26 --output "$BUILD_DIR/dex" "$BUILD_DIR/libs"/shizuku-*.jar
 
-cp "$BUILD_DIR/resources_v213.apk" "$BUILD_DIR/velqor_unaligned_213.apk"
-jar -uf "$BUILD_DIR/velqor_unaligned_213.apk" -C "$BUILD_DIR/dex" classes.dex
+cp "$BUILD_DIR/resources_v220.apk" "$BUILD_DIR/velqor_unaligned_220.apk"
+jar -uf "$BUILD_DIR/velqor_unaligned_220.apk" -C "$BUILD_DIR/dex" classes.dex
 
 rm -f "$APK_OUT"
-apksigner sign --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android --out "$APK_OUT" "$BUILD_DIR/velqor_unaligned_213.apk"
+apksigner sign --ks "$KEYSTORE" --ks-pass pass:android --key-pass pass:android --out "$APK_OUT" "$BUILD_DIR/velqor_unaligned_220.apk"
 
-# Also update v2.1.2 path as symlink or copy for convenience
+cp -f "$APK_OUT" "/sdcard/AntiGravity/velqor-v2.1.3.apk"
 cp -f "$APK_OUT" "/sdcard/AntiGravity/velqor-v2.1.2.apk"
 
 echo "Build and signed: $APK_OUT"

@@ -52,6 +52,8 @@ public class TestRunner {
         testFolderInfoCalculation();
         testZipInspection();
         testDirectoryWatcherDiff();
+        testSpringSolverPhysics();
+        testSnapAndRubberBand();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -524,6 +526,54 @@ public class TestRunner {
         assertTrue("Directory changed on file add", changedAdd);
 
         FileRepository.deleteRecursive(tempDir);
+    }
+
+    private static void testSpringSolverPhysics() {
+        System.out.println("[15/16] Testing SpringSolver Convergence & Underdamped Overshoot...");
+        com.velqor.app.ui.SpringSolver solver = new com.velqor.app.ui.SpringSolver(1.0f, 180.0f, 18.0f);
+        solver.setValue(0f);
+        solver.setTarget(100f);
+
+        float maxVal = 0f;
+        for (int i = 0; i < 60; i++) {
+            float v = solver.update(0.016f);
+            if (v > maxVal) maxVal = v;
+        }
+
+        assertTrue("Spring overshoot between 102% and 110%", maxVal > 102f && maxVal < 110f);
+
+        for (int i = 0; i < 120; i++) {
+            solver.update(0.016f);
+        }
+
+        assertTrue("Spring settled at rest", solver.isAtRest());
+        assertEquals("Spring final value is target", 100, (int) Math.round(solver.getValue()));
+    }
+
+    private static void testSnapAndRubberBand() {
+        System.out.println("[16/16] Testing Velocity-Aware Snap Target & Rubber-Band Damping...");
+        float[] tabPositions = new float[]{0f, 100f, 200f};
+
+        int snapStatic = com.velqor.app.ui.SpringSolver.computeSnapIndex(95f, 0f, tabPositions);
+        assertEquals("Static snap to nearest tab", 1, snapStatic);
+
+        int snapModerateFlick = com.velqor.app.ui.SpringSolver.computeSnapIndex(40f, 350f, tabPositions);
+        assertEquals("Moderate flick velocity predicts next tab", 1, snapModerateFlick);
+
+        int snapStrongFlick = com.velqor.app.ui.SpringSolver.computeSnapIndex(40f, 800f, tabPositions);
+        assertEquals("Strong flick velocity leaps across tabs", 2, snapStrongFlick);
+
+        int snapFlickLeft = com.velqor.app.ui.SpringSolver.computeSnapIndex(160f, -800f, tabPositions);
+        assertEquals("Flick velocity predicts backward tab", 0, snapFlickLeft);
+
+        float rbLeft = com.velqor.app.ui.SpringSolver.applyRubberBand(-50f, 200f, 300f);
+        assertTrue("Rubber-band resists left overscroll", rbLeft < 0f && rbLeft > -50f);
+
+        float rbRight = com.velqor.app.ui.SpringSolver.applyRubberBand(250f, 200f, 300f);
+        assertTrue("Rubber-band resists right overscroll", rbRight > 200f && rbRight < 250f);
+
+        float rbInside = com.velqor.app.ui.SpringSolver.applyRubberBand(100f, 200f, 300f);
+        assertEquals("Rubber-band maintains linear in-range values", 100f, rbInside);
     }
 
     private static File validateDestinationPath(File destDir, String entryName) throws Exception {
