@@ -130,6 +130,7 @@ public class MainActivity extends Activity {
 
         WirelessDebugManager.addBinderReceivedListener(mShizukuBinderListener);
         WirelessDebugManager.addRequestPermissionResultListener(mShizukuPermissionListener);
+        WirelessDebugManager.requestBinder(this);
 
         mCurrentDir = Environment.getExternalStorageDirectory();
         mShowHidden = getSharedPreferences("velqor_prefs", MODE_PRIVATE).getBoolean("show_hidden", false);
@@ -297,8 +298,15 @@ public class MainActivity extends Activity {
     @Override
     protected void onResume() {
         super.onResume();
+        WirelessDebugManager.requestBinder(this);
         if (mDirectoryWatcher != null && "files".equals(mCurrentTab) && !mIsSelectionMode) {
             mDirectoryWatcher.setPaused(false);
+        }
+        if ("settings".equals(mCurrentTab)) {
+            showSettingsTab();
+        }
+        if (WirelessDebugManager.isAndroidDataPath(mCurrentDir)) {
+            refreshDirectory();
         }
     }
 
@@ -1916,23 +1924,25 @@ public class MainActivity extends Activity {
         boolean isRunning = WirelessDebugManager.isShizukuRunning();
         if (isRunning && !isGranted) {
             cardActions.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_star, 0xFF34C759,
-                    "Cấp quyền Shizuku", "Chạm để mở hộp thoại cấp quyền của Shizuku", true, v -> {
+                    "Cấp quyền Shizuku", "Mở hộp thoại cấp quyền của Shizuku", true, v -> {
                         WirelessDebugManager.requestShizukuPermission(1001);
                     }, true));
         }
 
         cardActions.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_wifi, 0xFF5856D6,
-                "Mở ứng dụng Shizuku", "Khởi động dịch vụ hoặc kiểm tra Shizuku", true, v -> {
-                    try {
-                        Intent launch = getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
-                        if (launch != null) {
-                            startActivity(launch);
-                        } else {
+                "Quản lí ứng dụng Shizuku", "Bật công tắc cấp quyền cho VELQOR", true, v -> {
+                    if (!WirelessDebugManager.openShizukuManageApps(this)) {
+                        Toast.makeText(this, "Không thể mở Quản lí ứng dụng Shizuku.", Toast.LENGTH_SHORT).show();
+                    }
+                }, true));
+
+        cardActions.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_gear, 0xFF007AFF,
+                "Mở ứng dụng Shizuku", "Kiểm tra trạng thái dịch vụ Shizuku", true, v -> {
+                    if (!WirelessDebugManager.openShizukuApp(this)) {
+                        try {
                             Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app"));
                             startActivity(web);
-                        }
-                    } catch (Exception e) {
-                        Toast.makeText(this, "Không thể mở Shizuku: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                        } catch (Exception ignored) {}
                     }
                 }, true));
 

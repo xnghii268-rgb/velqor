@@ -111,8 +111,57 @@ public final class WirelessDebugManager {
             ctx.getPackageManager().getPackageInfo("moe.shizuku.privileged.api", 0);
             return true;
         } catch (Throwable ignored) {
-            return false;
+            try {
+                android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MAIN);
+                intent.setComponent(new android.content.ComponentName("moe.shizuku.privileged.api", "moe.shizuku.manager.MainActivity"));
+                return ctx.getPackageManager().resolveActivity(intent, 0) != null;
+            } catch (Throwable e) {
+                return false;
+            }
         }
+    }
+
+    public static boolean openShizukuManageApps(Context ctx) {
+        if (ctx == null) return false;
+        try {
+            android.content.Intent intent = new android.content.Intent();
+            intent.setComponent(new android.content.ComponentName("moe.shizuku.privileged.api", "moe.shizuku.manager.management.ManageAppsActivity"));
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(intent);
+            return true;
+        } catch (Throwable t) {
+            return openShizukuApp(ctx);
+        }
+    }
+
+    public static boolean openShizukuApp(Context ctx) {
+        if (ctx == null) return false;
+        try {
+            android.content.Intent intent = new android.content.Intent(android.content.Intent.ACTION_MAIN);
+            intent.setComponent(new android.content.ComponentName("moe.shizuku.privileged.api", "moe.shizuku.manager.MainActivity"));
+            intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+            ctx.startActivity(intent);
+            return true;
+        } catch (Throwable t1) {
+            try {
+                android.content.Intent launch = ctx.getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
+                if (launch != null) {
+                    launch.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK);
+                    ctx.startActivity(launch);
+                    return true;
+                }
+            } catch (Throwable t2) {
+                return false;
+            }
+        }
+        return false;
+    }
+
+    public static void requestBinder(Context ctx) {
+        if (ctx == null) return;
+        try {
+            rikka.shizuku.ShizukuProvider.requestBinderForNonProviderProcess(ctx);
+        } catch (Throwable ignored) {}
     }
 
     public static String getShizukuStatus(Context ctx) {
@@ -123,7 +172,7 @@ public final class WirelessDebugManager {
             return "Đang chạy (Chờ cấp quyền)";
         }
         if (isShizukuInstalled(ctx)) {
-            return "Đã cài đặt (Chưa chạy)";
+            return "Đã cài đặt (Chưa cấp quyền)";
         }
         return "Chưa kích hoạt";
     }
