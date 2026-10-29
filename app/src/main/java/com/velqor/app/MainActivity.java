@@ -64,14 +64,16 @@ import javax.crypto.spec.SecretKeySpec;
 public class MainActivity extends Activity {
 
     // ==========================================
-    // iOS DESIGN TOKENS (MILESTONE UI-REFIT-2 & UI-REFIT-3)
+    // iOS DESIGN TOKENS (MILESTONE UI-REFIT-2, 3 & 4)
     // ==========================================
     private static final int COLOR_BG = 0xFF000000;
     private static final int COLOR_SURFACE_ELEVATED = 0xFF1C1C1E;
+    private static final int COLOR_SURFACE_GLASS = 0xF41C1C1E; // 96% alpha glass fallback
     private static final int COLOR_ACTION_GROUP_BG = 0xFF2C2C2E;
     private static final int COLOR_LABEL = 0xFFFFFFFF;
     private static final int COLOR_SEC_LABEL = 0x99EBEBF5; // 60% alpha
     private static final int COLOR_SEPARATOR = 0x99545458; // 60% alpha
+    private static final int COLOR_SEPARATOR_INSET = 0x4D545458; // 30% alpha for 0.5dp inset dividers
     private static final int COLOR_ACCENT = 0xFF0A84FF;    // Apple Blue
     private static final int COLOR_DANGER = 0xFFFF453A;    // Apple Red
     private static final int COLOR_SUCCESS = 0xFF30D158;   // Apple Green
@@ -131,12 +133,15 @@ public class MainActivity extends Activity {
         // Main Scrollable Area with Inset Grouped List
         mScrollView = new ScrollView(this);
         mScrollView.setFillViewport(true);
+        mScrollView.setVerticalScrollBarEnabled(false);
 
         LinearLayout scrollContent = new LinearLayout(this);
         scrollContent.setOrientation(LinearLayout.VERTICAL);
-        // Top padding: status bar + 8dp + header (~110dp), Bottom padding: 96dp for floating tab bar
+        // Top padding: status bar + 8dp + header (~110dp)
+        // Bottom padding: floating tab bar (64dp) + margin (12dp) + navBar + 24dp (~112dp + navBar)
         int topPadding = getStatusBarHeight() + dp(100);
-        scrollContent.setPadding(dp(16), topPadding, dp(16), dp(96));
+        int bottomPadding = getNavBarHeight() + dp(112);
+        scrollContent.setPadding(dp(16), topPadding, dp(16), bottomPadding);
 
         mFileListGroup = new LinearLayout(this);
         mFileListGroup.setOrientation(LinearLayout.VERTICAL);
@@ -158,7 +163,7 @@ public class MainActivity extends Activity {
         selLp.topMargin = getStatusBarHeight() + dp(88);
         root.addView(mSelectionBar, selLp);
 
-        // Floating Liquid Glass Tab Bar (Milestone UI-REFIT-3)
+        // Floating Liquid Glass Tab Bar (Milestone UI-REFIT-3 & 4)
         View floatingTabBar = createFloatingGlassTabBar();
         FrameLayout.LayoutParams tabLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64));
         tabLp.gravity = Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL;
@@ -167,16 +172,18 @@ public class MainActivity extends Activity {
         tabLp.bottomMargin = getNavBarHeight() + dp(12);
         root.addView(floatingTabBar, tabLp);
 
-        // Header Scroll Behavior: Large title shrinks to inline title, background turns frosted
+        // Header Scroll Behavior: Large title shrinks to inline title 17sp SemiBold, background turns frosted
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             mScrollView.setOnScrollChangeListener((v, scrollX, scrollY, oldScrollX, oldScrollY) -> {
                 if (scrollY > dp(30)) {
-                    mHeaderRoot.setBackgroundColor(0xE6000000);
+                    mHeaderRoot.setBackgroundColor(COLOR_SURFACE_GLASS);
                     mLargeTitleText.setTextSize(17);
+                    mLargeTitleText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
                     mLargeTitleText.setGravity(Gravity.CENTER_VERTICAL);
                 } else {
                     mHeaderRoot.setBackgroundColor(Color.TRANSPARENT);
                     mLargeTitleText.setTextSize(34);
+                    mLargeTitleText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
                     mLargeTitleText.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
                 }
             });
@@ -193,6 +200,11 @@ public class MainActivity extends Activity {
             window.addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS);
             window.setStatusBarColor(Color.TRANSPARENT);
             window.setNavigationBarColor(Color.TRANSPARENT);
+
+            int flags = View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                      | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
+                      | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION;
+            window.getDecorView().setSystemUiVisibility(flags);
         }
     }
 
@@ -223,7 +235,7 @@ public class MainActivity extends Activity {
         mLargeTitleText = new TextView(this);
         mLargeTitleText.setText("VELQOR");
         mLargeTitleText.setTextSize(34);
-        mLargeTitleText.setTypeface(Typeface.DEFAULT_BOLD);
+        mLargeTitleText.setTypeface(Typeface.create("sans-serif-medium", Typeface.NORMAL));
         mLargeTitleText.setTextColor(COLOR_LABEL);
         LinearLayout.LayoutParams titleLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         header.addView(mLargeTitleText, titleLp);
@@ -252,10 +264,10 @@ public class MainActivity extends Activity {
         View breadcrumbView = createIosBreadcrumbs();
         layer.addView(breadcrumbView);
 
-        // Bottom separator line
+        // Bottom separator line (0.5dp)
         View divider = new View(this);
-        divider.setBackgroundColor(COLOR_SEPARATOR);
-        divider.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+        divider.setBackgroundColor(COLOR_SEPARATOR_INSET);
+        divider.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2)));
         layer.addView(divider);
 
         return layer;
@@ -445,38 +457,42 @@ public class MainActivity extends Activity {
     }
 
     // ==========================================
-    // FLOATING LIQUID GLASS TAB BAR (MILESTONE UI-REFIT-3)
+    // FLOATING LIQUID GLASS TAB BAR (MILESTONE UI-REFIT-3 & 4)
     // ==========================================
     private View createFloatingGlassTabBar() {
         mFloatingTabContainer = new FrameLayout(this);
         mFloatingTabContainer.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(64)));
+        mFloatingTabContainer.setClipChildren(false);
+        mFloatingTabContainer.setClipToPadding(false);
 
-        // Pill shape glass container
+        // Pill shape glass container with thick glass fallback & specular rim
         GradientDrawable glassBg = new GradientDrawable();
         glassBg.setCornerRadius(dp(32));
-        glassBg.setColor(0xE61C1C1E); // Translucent surfaceElevated
+        glassBg.setColor(COLOR_SURFACE_GLASS); // Translucent surfaceElevated alpha 0.96
         glassBg.setStroke(dp(1), 0x33FFFFFF); // Specular rim
         mFloatingTabContainer.setBackground(glassBg);
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            mFloatingTabContainer.setElevation(dp(8));
+            mFloatingTabContainer.setElevation(dp(6)); // Soft subtle elevation
         }
 
-        // Water-drop indicator pill (behind selected tab)
+        // Water-drop indicator pill (height = 64dp - 8dp = 56dp, width = tabWidth - 8dp)
         mWaterDropIndicator = new View(this);
         GradientDrawable dropBg = new GradientDrawable();
-        dropBg.setCornerRadius(dp(22));
+        dropBg.setCornerRadius(dp(28));
         dropBg.setColor(0x2E0A84FF); // 18% accent tint
         dropBg.setStroke(dp(1), 0x550A84FF);
         mWaterDropIndicator.setBackground(dropBg);
-        FrameLayout.LayoutParams dropLp = new FrameLayout.LayoutParams(dp(56), dp(44));
+        FrameLayout.LayoutParams dropLp = new FrameLayout.LayoutParams(dp(56), dp(56));
         dropLp.gravity = Gravity.CENTER_VERTICAL;
         mFloatingTabContainer.addView(mWaterDropIndicator, dropLp);
 
-        // 5 Tab items in horizontal row
+        // 5 Tab items in horizontal row (divided equally 100%)
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
+        row.setClipChildren(false);
+        row.setClipToPadding(false);
         row.setLayoutParams(new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mTabViews.clear();
@@ -492,7 +508,10 @@ public class MainActivity extends Activity {
         mFloatingTabContainer.addView(row);
 
         // Initial layout indicator position
-        mFloatingTabContainer.post(() -> animateIndicatorToTab(0, false));
+        mFloatingTabContainer.post(() -> {
+            adjustIndicatorWidth(0);
+            animateIndicatorToTab(0, false);
+        });
 
         return mFloatingTabContainer;
     }
@@ -501,7 +520,9 @@ public class MainActivity extends Activity {
         LinearLayout item = new LinearLayout(this);
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
-        item.setPadding(dp(4), dp(4), dp(4), dp(4));
+        item.setClipChildren(false);
+        item.setClipToPadding(false);
+        item.setPadding(dp(2), dp(2), dp(2), dp(2));
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
         item.setLayoutParams(lp);
 
@@ -511,16 +532,16 @@ public class MainActivity extends Activity {
         ImageView iv = new ImageView(this);
         iv.setImageResource(iconResId);
         iv.setColorFilter(tint);
-        iv.setLayoutParams(new LinearLayout.LayoutParams(dp(22), dp(22)));
+        iv.setLayoutParams(new LinearLayout.LayoutParams(dp(24), dp(24))); // Standard 24dp
         item.addView(iv);
 
         TextView tv = new TextView(this);
         tv.setText(label);
-        tv.setTextSize(10);
+        tv.setTextSize(10); // Standard 10sp
         tv.setTextColor(tint);
         tv.setTypeface(isSelected ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
         LinearLayout.LayoutParams textLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        textLp.topMargin = dp(2);
+        textLp.topMargin = dp(2); // 2dp spacing between icon and label
         tv.setLayoutParams(textLp);
         item.addView(tv);
 
@@ -537,20 +558,38 @@ public class MainActivity extends Activity {
         return item;
     }
 
+    private void adjustIndicatorWidth(int index) {
+        if (index >= 0 && index < mTabViews.size()) {
+            View tab = mTabViews.get(index);
+            if (tab.getWidth() > 0) {
+                int dropW = tab.getWidth() - dp(8);
+                FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mWaterDropIndicator.getLayoutParams();
+                if (lp != null && (lp.width != dropW || lp.height != dp(56))) {
+                    lp.width = dropW;
+                    lp.height = dp(56);
+                    mWaterDropIndicator.setLayoutParams(lp);
+                }
+            }
+        }
+    }
+
     private void animateIndicatorToTab(int index, boolean animate) {
         if (index < 0 || index >= mTabViews.size()) return;
         View targetTab = mTabViews.get(index);
-        int targetX = targetTab.getLeft() + (targetTab.getWidth() - mWaterDropIndicator.getWidth()) / 2;
+        adjustIndicatorWidth(index);
+        int targetX = targetTab.getLeft() + dp(4); // Centered with 4dp margin on each side
 
         if (animate) {
-            // Spring water-drop stretch & snap
+            // Spring water-drop stretch (scaleX 1.22, scaleY 0.92) & snap
             mWaterDropIndicator.animate()
                 .translationX(targetX)
-                .scaleX(1.20f)
-                .setDuration(120)
+                .scaleX(1.22f)
+                .scaleY(0.92f)
+                .setDuration(130)
                 .withEndAction(() -> {
                     mWaterDropIndicator.animate()
                         .scaleX(1.0f)
+                        .scaleY(1.0f)
                         .setDuration(180)
                         .setInterpolator(new OvershootInterpolator(1.2f))
                         .start();
@@ -831,8 +870,8 @@ public class MainActivity extends Activity {
         // Inset Separator: 0.5dp line, inset from text start (68dp), omitted on last item
         if (!isLast) {
             View sep = new View(this);
-            sep.setBackgroundColor(COLOR_SEPARATOR);
-            LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+            sep.setBackgroundColor(COLOR_SEPARATOR_INSET);
+            LinearLayout.LayoutParams sepLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2));
             sepLp.leftMargin = dp(mIsSelectionMode ? 102 : 68);
             sep.setLayoutParams(sepLp);
             rowContainer.addView(sep);
@@ -863,7 +902,23 @@ public class MainActivity extends Activity {
     }
 
     private int getSemanticColorForFile(File f) {
-        if (f.isDirectory()) return COLOR_ICON_FOLDER;
+        if (f.isDirectory()) {
+            String dirName = f.getName().toLowerCase();
+            if (dirName.equals("download") || dirName.equals("downloads")) {
+                return 0xFF0A84FF; // Apple Blue
+            } else if (dirName.equals("dcim") || dirName.equals("pictures") || dirName.equals("photos")) {
+                return COLOR_ICON_IMAGE; // 0xFFFF9F0A Orange
+            } else if (dirName.equals("documents") || dirName.equals("doc")) {
+                return COLOR_ICON_DOCUMENT; // 0xFF64D2FF Cyan
+            } else if (dirName.equals("music") || dirName.equals("audio") || dirName.equals("podcasts")) {
+                return COLOR_ICON_AUDIO; // 0xFFBF5AF2 Purple
+            } else if (dirName.equals("movies") || dirName.equals("videos")) {
+                return COLOR_ICON_VIDEO; // 0xFFFF375F Red
+            } else if (dirName.equals("android")) {
+                return COLOR_ICON_APK; // 0xFF30D158 Green
+            }
+            return COLOR_ICON_FOLDER;
+        }
         String name = f.getName().toLowerCase();
         if (isArchive(f)) return COLOR_ICON_ARCHIVE;
         if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") || name.endsWith(".webp") || name.endsWith(".gif")) return COLOR_ICON_IMAGE;
@@ -882,7 +937,7 @@ public class MainActivity extends Activity {
     }
 
     // ==========================================
-    // MODAL BOTTOM SHEET SYSTEM (MILESTONE UI-REFIT-2)
+    // MODAL BOTTOM SHEET SYSTEM (MILESTONE UI-REFIT-2 & 4)
     // ==========================================
     private Dialog createBaseIosSheet() {
         Dialog dialog = new Dialog(this, android.R.style.Theme_Translucent_NoTitleBar);
@@ -893,8 +948,20 @@ public class MainActivity extends Activity {
 
     private LinearLayout createSheetRoot(Dialog dialog) {
         int screenWidth = getResources().getDisplayMetrics().widthPixels;
+        int screenHeight = getResources().getDisplayMetrics().heightPixels;
+        final int maxSheetHeight = (int) (screenHeight * 0.75f); // Max height 75% screen
 
-        LinearLayout sheet = new LinearLayout(this);
+        LinearLayout sheet = new LinearLayout(this) {
+            @Override
+            protected void onMeasure(int widthMeasureSpec, int heightMeasureSpec) {
+                int mode = MeasureSpec.getMode(heightMeasureSpec);
+                int size = MeasureSpec.getSize(heightMeasureSpec);
+                if (mode == MeasureSpec.UNSPECIFIED || size > maxSheetHeight) {
+                    heightMeasureSpec = MeasureSpec.makeMeasureSpec(maxSheetHeight, MeasureSpec.AT_MOST);
+                }
+                super.onMeasure(widthMeasureSpec, heightMeasureSpec);
+            }
+        };
         sheet.setOrientation(LinearLayout.VERTICAL);
         sheet.setPadding(dp(16), dp(10), dp(16), dp(24));
         sheet.setMinimumWidth(screenWidth);
@@ -1004,17 +1071,18 @@ public class MainActivity extends Activity {
 
         // Separator line 0.5dp
         View sep = new View(this);
-        sep.setBackgroundColor(COLOR_SEPARATOR);
-        sep.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
+        sep.setBackgroundColor(COLOR_SEPARATOR_INSET);
+        sep.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2)));
         sheet.addView(sep);
 
         // Scrollable container for action groups
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(false);
+        sv.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
         LinearLayout scrollContent = new LinearLayout(this);
         scrollContent.setOrientation(LinearLayout.VERTICAL);
 
-        // Group 1: Mở bằng…, Chia sẻ, Chi tiết
+        // Group 1: Mở bằng…, Chia sẻ, Chi tiết (icon info outline)
         LinearLayout group1 = createActionGroup();
         group1.addView(createActionRow(R.drawable.ic_open_with, "Mở bằng…", false, v -> {
             dialog.dismiss();
@@ -1069,7 +1137,7 @@ public class MainActivity extends Activity {
             computeSha256(f);
         }, true));
 
-        group3.addView(createActionRow(R.drawable.ic_lock, "Mã hóa vào Vault (AES-GCM)", false, v -> {
+        group3.addView(createActionRow(R.drawable.ic_lock, "Mã hóa vào Vault", false, v -> {
             dialog.dismiss();
             showEncryptToVaultSheet(f);
         }, false));
@@ -1135,8 +1203,8 @@ public class MainActivity extends Activity {
 
         if (hasDivider) {
             View div = new View(this);
-            div.setBackgroundColor(COLOR_SEPARATOR);
-            LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1));
+            div.setBackgroundColor(COLOR_SEPARATOR_INSET);
+            LinearLayout.LayoutParams divLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, dp(1) / 2));
             divLp.leftMargin = dp(52); // Inset from text start
             div.setLayoutParams(divLp);
             container.addView(div);
@@ -2239,7 +2307,7 @@ public class MainActivity extends Activity {
         card.addView(title);
 
         TextView info = new TextView(this);
-        info.setText("\n• Phiên bản: VELQOR v2.0.3 (Build 5)\n• Thiết kế: Giao diện Liquid Glass Cupertino chuẩn Apple\n• Quyền bộ nhớ: MANAGE_EXTERNAL_STORAGE đã cấp\n• Động cơ xử lý: Pure Android SDK + Coroutines Flow\n• Nhà phát triển: Google DeepMind Pair Programming");
+        info.setText("\n• Phiên bản: VELQOR v2.0.5 (Build 7)\n• Thiết kế: Giao diện Liquid Glass Cupertino chuẩn Apple\n• Quyền bộ nhớ: MANAGE_EXTERNAL_STORAGE đã cấp\n• Động cơ xử lý: Pure Android SDK + Coroutines Flow\n• Nhà phát triển: Google DeepMind Pair Programming");
         info.setTextColor(COLOR_SEC_LABEL);
         info.setTextSize(14);
         card.addView(info);
