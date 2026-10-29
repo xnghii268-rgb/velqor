@@ -107,6 +107,17 @@ public class FloatingTabBar extends FrameLayout {
         mListener = listener;
     }
 
+    public void selectTab(String tabKey) {
+        for (int i = 0; i < mTabKeys.length; i++) {
+            if (mTabKeys[i].equals(tabKey)) {
+                mCurrentTab = tabKey;
+                animateIndicatorToTab(i, true);
+                updateTabSelectionState();
+                break;
+            }
+        }
+    }
+
     private View createTabItem(int iconResId, String label, String tabKey, int index) {
         LinearLayout item = new LinearLayout(getContext());
         item.setOrientation(LinearLayout.VERTICAL);

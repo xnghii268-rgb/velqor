@@ -74,6 +74,8 @@ public class MainActivity extends Activity {
     private File mClipboardFile = null;
     private boolean mIsCutAction = false;
     private String mCurrentTab = "files";
+    private boolean mIsSearchActive = false;
+    private long mLastBackPressTime = 0;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -84,6 +86,18 @@ public class MainActivity extends Activity {
 
         mCurrentDir = Environment.getExternalStorageDirectory();
         checkAndRequestPermissions();
+
+        // Predictive back gesture support for Android 13+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getOnBackInvokedDispatcher().registerOnBackInvokedCallback(
+                android.window.OnBackInvokedDispatcher.PRIORITY_DEFAULT,
+                () -> {
+                    if (!handleBackNavigation()) {
+                        finish();
+                    }
+                }
+            );
+        }
 
         // 2. Build iOS-Grade Layered View Hierarchy
         FrameLayout root = new FrameLayout(this);
@@ -287,6 +301,7 @@ public class MainActivity extends Activity {
     }
 
     private void refreshDirectory() {
+        mIsSearchActive = false;
         mHeaderView.updateBreadcrumbs(mCurrentDir);
         mFileListGroup.removeAllViews();
 
@@ -939,6 +954,7 @@ public class MainActivity extends Activity {
     }
 
     private void performSearch(String query) {
+        mIsSearchActive = true;
         mFileListGroup.removeAllViews();
         List<File> matched = FileRepository.search(mCurrentDir, query, 100);
 
@@ -1441,5 +1457,89 @@ public class MainActivity extends Activity {
                 }
             }
         } catch (Exception ignored) {}
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (handleBackNavigation()) {
+            return;
+        }
+        super.onBackPressed();
+    }
+
+    @Override
+    public boolean onKeyDown(int keyCode, android.view.KeyEvent event) {
+        if (keyCode == android.view.KeyEvent.KEYCODE_BACK && event.getRepeatCount() == 0) {
+            if (handleBackNavigation()) {
+                return true;
+            }
+        }
+        return super.onKeyDown(keyCode, event);
+    }
+
+    private boolean handleBackNavigation() {
+        // 1. Exit Selection Mode if active
+        if (mIsSelectionMode) {
+            exitSelectionMode();
+            return true;
+        }
+
+        // 2. Exit Search Mode if active
+        if (mIsSearchActive) {
+            mIsSearchActive = false;
+            refreshDirectory();
+            return true;
+        }
+
+        // 3. Switch to "Tệp" tab if in another tab
+        if (!"files".equals(mCurrentTab)) {
+            mCurrentTab = "files";
+            if (mFloatingTabBar != null) {
+                mFloatingTabBar.selectTab("files");
+            }
+            switchTab("files");
+            return true;
+        }
+
+        // 4. In "Tệp" tab: if inside a subfolder, navigate up to parent directory
+        if (mCurrentDir != null && !isStorageRoot(mCurrentDir)) {
+            File parent = mCurrentDir.getParentFile();
+            if (parent != null && parent.canRead()) {
+                mCurrentDir = parent;
+                refreshDirectory();
+                if (mScrollView != null) {
+                    mScrollView.smoothScrollTo(0, 0);
+                }
+                return true;
+            }
+        }
+
+        // 5. At root: double-back within 2 seconds to exit app
+        long now = System.currentTimeMillis();
+        if (now - mLastBackPressTime < 2000) {
+            return false;
+        } else {
+            mLastBackPressTime = now;
+            Toast.makeText(this, "Nhấn lần nữa để thoát VELQOR", Toast.LENGTH_SHORT).show();
+            return true;
+        }
+    }
+
+    private boolean isStorageRoot(File dir) {
+        if (dir == null) return true;
+        File root = Environment.getExternalStorageDirectory();
+        try {
+            if (dir.getCanonicalPath().equals(root.getCanonicalPath())) return true;
+        } catch (Exception ignored) {}
+
+        String path = dir.getAbsolutePath();
+        if (path.equals("/storage/emulated/0") || path.equals("/sdcard") ||
+            path.equals("/storage/emulated") || path.equals("/storage") ||
+            path.equals("/")) {
+            return true;
+        }
+
+        File parent = dir.getParentFile();
+        return parent == null || !parent.canRead();
     }
 }
