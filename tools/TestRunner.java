@@ -2,9 +2,12 @@ package tools;
 
 import com.velqor.app.archive.ZipManager;
 import com.velqor.app.files.FileRepository;
+import com.velqor.app.files.TextFileIO;
+import com.velqor.app.files.ThumbnailCache;
 import com.velqor.app.security.HashUtils;
 import com.velqor.app.security.VaultManager;
 
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -47,6 +50,8 @@ public class TestRunner {
         testTarEngine();
         testFileRepositoryOperations();
         testStandardSha256Vectors();
+        testTextFileIOOperations();
+        testThumbnailKeyAndTextFileDetection();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -58,7 +63,7 @@ public class TestRunner {
     }
 
     private static void testFormatters() {
-        System.out.println("[1/8] Testing Size & Date Formatters...");
+        System.out.println("[1/10] Testing Size & Date Formatters...");
         assertEquals("Format 0 bytes", "0 B", formatFileSize(0));
         assertEquals("Format 500 bytes", "500 B", formatFileSize(500));
         assertEquals("Format 1024 bytes", "1.0 KB", formatFileSize(1024));
@@ -67,7 +72,7 @@ public class TestRunner {
     }
 
     private static void testSearchAccentRemoval() {
-        System.out.println("[2/8] Testing Vietnamese Accent Removal for Search...");
+        System.out.println("[2/10] Testing Vietnamese Accent Removal for Search...");
         assertEquals("Accent removal", "tieng viet", FileRepository.removeAccents("tiếng việt"));
         assertEquals("Accent removal uppercase", "TAI LIEU", FileRepository.removeAccents("TÀI LIỆU"));
         assertEquals("Letter D stroke", "du an", FileRepository.removeAccents("dự án"));
@@ -75,7 +80,7 @@ public class TestRunner {
     }
 
     private static void testZipSlipDefense() throws Exception {
-        System.out.println("[3/8] Testing Zip Slip Path Traversal Defense...");
+        System.out.println("[3/10] Testing Zip Slip Path Traversal Defense...");
         File safeDir = new File("/data/data/com.termuxpro.app/files/home/test_safe_dir");
         safeDir.mkdirs();
 
@@ -96,7 +101,7 @@ public class TestRunner {
     }
 
     private static void testSha256Hasher() throws Exception {
-        System.out.println("[4/8] Testing SHA-256 Stream Hasher...");
+        System.out.println("[4/10] Testing SHA-256 Stream Hasher...");
         File temp = File.createTempFile("sha_test", ".txt");
         try {
             try (FileOutputStream fos = new FileOutputStream(temp)) {
@@ -110,7 +115,7 @@ public class TestRunner {
     }
 
     private static void testVaultAes256Gcm() throws Exception {
-        System.out.println("[5/8] Testing Vault AES-256-GCM Streaming & Tamper Detection...");
+        System.out.println("[5/10] Testing Vault AES-256-GCM Streaming & Tamper Detection...");
         File tempSrc = File.createTempFile("velqor_src", ".txt");
         File tempEnc = File.createTempFile("velqor_enc", ".vqr");
         File tempDec = File.createTempFile("velqor_dec", ".txt");
@@ -157,7 +162,7 @@ public class TestRunner {
     }
 
     private static void testTarEngine() throws Exception {
-        System.out.println("[6/8] Testing TAR & GZIP Stream Creation & Unpacking...");
+        System.out.println("[6/10] Testing TAR & GZIP Stream Creation & Unpacking...");
         File srcFile = File.createTempFile("tar_src", ".txt");
         File tarGzFile = File.createTempFile("tar_out", ".tar.gz");
         File destDir = new File(srcFile.getParentFile(), "tar_extracted_" + System.currentTimeMillis());
@@ -201,7 +206,7 @@ public class TestRunner {
     }
 
     private static void testFileRepositoryOperations() throws Exception {
-        System.out.println("[7/8] Testing FileRepository Operations (Copy, Move, Delete, Rename, Duplicate check)...");
+        System.out.println("[7/10] Testing FileRepository Operations (Copy, Move, Delete, Rename, Duplicate check)...");
         File testDir = new File("/data/data/com.termuxpro.app/files/home/test_velqor_fs_" + System.currentTimeMillis());
         testDir.mkdirs();
 
@@ -256,7 +261,7 @@ public class TestRunner {
     }
 
     private static void testStandardSha256Vectors() throws Exception {
-        System.out.println("[8/8] Testing SHA-256 Standard NIST Test Vectors...");
+        System.out.println("[8/10] Testing SHA-256 Standard NIST Test Vectors...");
         // Empty string vector
         File emptyFile = File.createTempFile("nist_empty", ".txt");
         try {
@@ -265,6 +270,171 @@ public class TestRunner {
                     "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", hashEmpty);
         } finally {
             emptyFile.delete();
+        }
+    }
+
+    private static void testTextFileIOOperations() throws Exception {
+        System.out.println("[9/10] Testing TextFileIO Operations (UTF-8 BOM, CRLF, UTF-16, Empty, Diacritics, Zip Entry Edit)...");
+
+        // 1. Empty file detection & read/write
+        File emptyFile = File.createTempFile("test_empty_", ".txt");
+        try {
+            assertTrue("Empty file is text file", TextFileIO.isTextFile(emptyFile));
+            TextFileIO.TextDocument docEmpty = TextFileIO.readTextFile(emptyFile);
+            assertEquals("Empty file content", "", docEmpty.content);
+            TextFileIO.writeTextFile(emptyFile, "Now has content", docEmpty);
+            assertEquals("File size after writing", "Now has content".length(), (int) emptyFile.length());
+        } finally {
+            emptyFile.delete();
+        }
+
+        // 2. UTF-8 with BOM and CRLF line endings
+        File bomFile = File.createTempFile("test_bom_", ".txt");
+        try {
+            try (FileOutputStream fos = new FileOutputStream(bomFile)) {
+                fos.write(new byte[]{(byte) 0xEF, (byte) 0xBB, (byte) 0xBF});
+                fos.write("Dong 1\r\nDong 2\r\n".getBytes(StandardCharsets.UTF_8));
+            }
+            TextFileIO.TextDocument docBom = TextFileIO.readTextFile(bomFile);
+            assertTrue("Detects UTF-8 BOM", docBom.hasBom);
+            assertEquals("Detects UTF-8 charset", "UTF-8", docBom.charsetName);
+            assertEquals("Detects CRLF line endings", "\r\n", docBom.lineEnding);
+
+            // Update content and re-save
+            TextFileIO.writeTextFile(bomFile, "Dong 1 da sua\nDong 2 da sua\n", docBom);
+
+            // Verify BOM preserved on disk
+            byte[] reloadedBytes = java.nio.file.Files.readAllBytes(bomFile.toPath());
+            assertTrue("BOM preserved byte 0", reloadedBytes.length >= 3 && reloadedBytes[0] == (byte) 0xEF);
+            assertTrue("BOM preserved byte 1", reloadedBytes[1] == (byte) 0xBB);
+            assertTrue("BOM preserved byte 2", reloadedBytes[2] == (byte) 0xBF);
+            String savedText = new String(reloadedBytes, 3, reloadedBytes.length - 3, StandardCharsets.UTF_8);
+            assertTrue("Line endings converted to CRLF", savedText.contains("\r\n"));
+        } finally {
+            bomFile.delete();
+        }
+
+        // 3. UTF-16LE BOM detection
+        File utf16File = File.createTempFile("test_utf16_", ".txt");
+        try {
+            try (FileOutputStream fos = new FileOutputStream(utf16File)) {
+                fos.write(new byte[]{(byte) 0xFF, (byte) 0xFE}); // UTF-16LE BOM
+                fos.write("AB".getBytes(StandardCharsets.UTF_16LE));
+            }
+            TextFileIO.TextDocument doc16 = TextFileIO.readTextFile(utf16File);
+            assertTrue("Detects UTF-16LE BOM", doc16.hasBom);
+            assertEquals("Detects UTF-16LE charset", "UTF-16LE", doc16.charsetName);
+            assertEquals("Decoded UTF-16LE content", "AB", doc16.content);
+        } finally {
+            utf16File.delete();
+        }
+
+        // 4. Vietnamese accented characters
+        File vnFile = File.createTempFile("test_vn_", ".txt");
+        try {
+            String vnContent = "Hệ thống quản lý tệp tin VELQOR 2026: Tiếng Việt có dấu ă, â, đ, ê, ô, ơ, ư";
+            TextFileIO.writeTextFile(vnFile, vnContent, new TextFileIO.TextDocument("", "UTF-8", false, "\n", 0, false));
+            TextFileIO.TextDocument docVn = TextFileIO.readTextFile(vnFile);
+            assertEquals("Vietnamese diacritics preserved perfectly", vnContent, docVn.content);
+        } finally {
+            vnFile.delete();
+        }
+
+        // 5. Large File Paging Chunk reading
+        File pagingFile = File.createTempFile("test_paging_", ".txt");
+        try {
+            byte[] dummyData = new byte[70 * 1024]; // > 64 KB
+            Arrays.fill(dummyData, (byte) 'A');
+            try (FileOutputStream fos = new FileOutputStream(pagingFile)) {
+                fos.write(dummyData);
+            }
+            TextFileIO.TextDocument pagedDoc = TextFileIO.readPagingChunk(pagingFile, 0);
+            assertTrue("Paged doc marked as paging", pagedDoc.isReadOnlyPaging);
+            assertEquals("First page read chunk size", TextFileIO.PAGING_CHUNK_SIZE, pagedDoc.content.length());
+        } finally {
+            pagingFile.delete();
+        }
+
+        // 6. Zip entry editing
+        File zipFile = File.createTempFile("test_archive_", ".zip");
+        try {
+            // Create a zip with 2 entries
+            try (java.util.zip.ZipOutputStream zos = new java.util.zip.ZipOutputStream(new FileOutputStream(zipFile))) {
+                java.util.zip.ZipEntry ze1 = new java.util.zip.ZipEntry("notes/doc1.txt");
+                zos.putNextEntry(ze1);
+                zos.write("Original Note 1".getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+
+                java.util.zip.ZipEntry ze2 = new java.util.zip.ZipEntry("doc2.txt");
+                zos.putNextEntry(ze2);
+                zos.write("Original Note 2".getBytes(StandardCharsets.UTF_8));
+                zos.closeEntry();
+            }
+
+            // Update entry 1 inside ZIP
+            TextFileIO.TextDocument entryDoc = new TextFileIO.TextDocument("", "UTF-8", false, "\n", 0, false);
+            TextFileIO.updateZipEntryText(zipFile, "notes/doc1.txt", "Modified Content in Zip 2026", entryDoc);
+
+            // Verify both entries
+            Map<String, String> entries = new HashMap<>();
+            try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(new FileInputStream(zipFile))) {
+                java.util.zip.ZipEntry ze;
+                byte[] buf = new byte[1024];
+                while ((ze = zis.getNextEntry()) != null) {
+                    ByteArrayOutputStream baos = new ByteArrayOutputStream();
+                    int r;
+                    while ((r = zis.read(buf)) > 0) {
+                        baos.write(buf, 0, r);
+                    }
+                    entries.put(ze.getName(), baos.toString(StandardCharsets.UTF_8.name()));
+                    zis.closeEntry();
+                }
+            }
+
+            assertEquals("doc1.txt updated inside ZIP", "Modified Content in Zip 2026", entries.get("notes/doc1.txt"));
+            assertEquals("doc2.txt kept unchanged inside ZIP", "Original Note 2", entries.get("doc2.txt"));
+        } finally {
+            zipFile.delete();
+        }
+
+        // 7. Regex compilation safety
+        boolean regexErrorCaught = false;
+        try {
+            java.util.regex.Pattern.compile("[invalid regex ((");
+        } catch (java.util.regex.PatternSyntaxException e) {
+            regexErrorCaught = true;
+        }
+        assertTrue("Invalid regex pattern caught safely without crash", regexErrorCaught);
+    }
+
+    private static void testThumbnailKeyAndTextFileDetection() throws Exception {
+        System.out.println("[10/10] Testing Thumbnail Key Generation & Binary File NUL Check...");
+
+        File tempFile = File.createTempFile("thumb_test_", ".png");
+        try {
+            try (FileOutputStream fos = new FileOutputStream(tempFile)) {
+                fos.write(new byte[]{1, 2, 3, 4, 5});
+            }
+            String key1 = ThumbnailCache.generateKey(tempFile);
+            assertTrue("Key is non-empty", key1 != null && !key1.isEmpty());
+
+            // Simulate file modification
+            tempFile.setLastModified(tempFile.lastModified() + 5000);
+            String key2 = ThumbnailCache.generateKey(tempFile);
+            assertTrue("Key changes when lastModified changes", !key1.equals(key2));
+        } finally {
+            tempFile.delete();
+        }
+
+        // Binary file with NUL byte test
+        File binFile = File.createTempFile("test_binary_", ".dat");
+        try {
+            try (FileOutputStream fos = new FileOutputStream(binFile)) {
+                fos.write(new byte[]{0x48, 0x65, 0x6C, 0x00, 0x6F}); // Has 0x00 byte
+            }
+            assertTrue("File with NUL byte is not text", !TextFileIO.isTextFile(binFile));
+        } finally {
+            binFile.delete();
         }
     }
 

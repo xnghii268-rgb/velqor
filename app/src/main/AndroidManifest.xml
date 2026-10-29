@@ -36,6 +36,19 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name="com.velqor.app.ui.ImageViewerActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:theme="@style/Theme.Velqor" />
+
+        <activity
+            android:name="com.velqor.app.ui.TextEditorActivity"
+            android:exported="false"
+            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
+            android:windowSoftInputMode="adjustResize"
+            android:theme="@style/Theme.Velqor" />
+
         <!-- Foreground Service for archiving and batch tasks -->
         <service
             android:name="com.velqor.core.tasks.service.TaskForegroundService"

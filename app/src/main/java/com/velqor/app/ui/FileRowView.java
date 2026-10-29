@@ -4,6 +4,7 @@ import android.content.Context;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -74,23 +75,66 @@ public class FileRowView extends LinearLayout {
         // 40x40dp Icon in 10dp rounded box with semantic color tint (alpha 0.18, contrast >= 3:1)
         int iconRes = getIconResourceForFile(f);
         int tintColor = getSemanticColorForFile(f);
+        String nameLower = f.getName().toLowerCase();
+        boolean isApk = nameLower.endsWith(".apk");
+        boolean isMedia = nameLower.endsWith(".jpg") || nameLower.endsWith(".jpeg") || nameLower.endsWith(".png") ||
+                          nameLower.endsWith(".webp") || nameLower.endsWith(".mp4") || nameLower.endsWith(".mkv") ||
+                          nameLower.endsWith(".mov") || nameLower.endsWith(".avi");
 
-        LinearLayout iconBox = new LinearLayout(ctx);
-        iconBox.setGravity(Gravity.CENTER);
+        android.widget.FrameLayout iconBox = new android.widget.FrameLayout(ctx);
         int boxSize = ThemeTokens.dp(ctx, ThemeTokens.SIZE_ICON_BOX);
         iconBox.setLayoutParams(new LinearLayout.LayoutParams(boxSize, boxSize));
 
         GradientDrawable iconBoxBg = new GradientDrawable();
         iconBoxBg.setCornerRadius(ThemeTokens.dp(ctx, ThemeTokens.RADIUS_ICON_BOX));
-        iconBoxBg.setColor((tintColor & 0x00FFFFFF) | 0x2E000000); // 18% opacity tint
+        iconBoxBg.setColor(isApk ? 0x15FFFFFF : ((tintColor & 0x00FFFFFF) | 0x2E000000));
         iconBox.setBackground(iconBoxBg);
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+            iconBox.setClipToOutline(true);
+        }
 
         ImageView iv = new ImageView(ctx);
         iv.setImageResource(iconRes);
         iv.setColorFilter(tintColor);
-        int insideSize = ThemeTokens.dp(ctx, ThemeTokens.SIZE_ICON_INSIDE);
-        iv.setLayoutParams(new LinearLayout.LayoutParams(insideSize, insideSize));
+
+        if (isMedia) {
+            iv.setScaleType(ImageView.ScaleType.CENTER_CROP);
+            android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            iv.setLayoutParams(ivLp);
+        } else if (isApk) {
+            int apkIconSize = ThemeTokens.dp(ctx, 34);
+            android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(apkIconSize, apkIconSize);
+            ivLp.gravity = Gravity.CENTER;
+            iv.setLayoutParams(ivLp);
+        } else {
+            int insideSize = ThemeTokens.dp(ctx, ThemeTokens.SIZE_ICON_INSIDE);
+            android.widget.FrameLayout.LayoutParams ivLp = new android.widget.FrameLayout.LayoutParams(insideSize, insideSize);
+            ivLp.gravity = Gravity.CENTER;
+            iv.setLayoutParams(ivLp);
+        }
         iconBox.addView(iv);
+
+        // Thumbnail Loader integration (if enabled in preferences)
+        boolean showThumbs = ctx.getSharedPreferences("velqor_editor_prefs", Context.MODE_PRIVATE)
+                .getBoolean("show_thumbnails", true);
+        if (showThumbs && !f.isDirectory()) {
+            ThumbnailLoader.getInstance(ctx).loadThumbnail(f, iv);
+        }
+
+        // Small play badge overlay for videos
+        if (nameLower.endsWith(".mp4") || nameLower.endsWith(".mkv") || nameLower.endsWith(".avi") || nameLower.endsWith(".mov")) {
+            ImageView playIcon = new ImageView(ctx);
+            playIcon.setImageResource(R.drawable.ic_chevron_right); // Play-like vector
+            playIcon.setColorFilter(Color.WHITE);
+            int pSize = ThemeTokens.dp(ctx, 12);
+            android.widget.FrameLayout.LayoutParams playLp = new android.widget.FrameLayout.LayoutParams(pSize, pSize);
+            playLp.gravity = Gravity.BOTTOM | Gravity.END;
+            playLp.rightMargin = ThemeTokens.dp(ctx, 3);
+            playLp.bottomMargin = ThemeTokens.dp(ctx, 3);
+            playIcon.setLayoutParams(playLp);
+            iconBox.addView(playIcon);
+        }
 
         row.addView(iconBox);
 

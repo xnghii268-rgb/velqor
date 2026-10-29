@@ -32,13 +32,16 @@ import android.widget.Toast;
 
 import com.velqor.app.archive.ZipManager;
 import com.velqor.app.files.FileRepository;
+import com.velqor.app.files.TextFileIO;
 import com.velqor.app.security.HashUtils;
 import com.velqor.app.security.VaultManager;
 import com.velqor.app.tokens.ThemeTokens;
 import com.velqor.app.ui.FileRowView;
 import com.velqor.app.ui.FloatingTabBar;
 import com.velqor.app.ui.HeaderView;
+import com.velqor.app.ui.ImageViewerActivity;
 import com.velqor.app.ui.IosSheet;
+import com.velqor.app.ui.TextEditorActivity;
 
 import java.io.File;
 import java.text.SimpleDateFormat;
@@ -310,6 +313,10 @@ public class MainActivity extends Activity {
                         if (clickedFile.isDirectory()) {
                             mCurrentDir = clickedFile;
                             refreshDirectory();
+                        } else if (ImageViewerActivity.isImageFile(clickedFile)) {
+                            openImageViewer(clickedFile);
+                        } else if (TextFileIO.isTextFile(clickedFile)) {
+                            openTextEditor(clickedFile);
                         } else {
                             showFileActionSheet(clickedFile);
                         }
@@ -439,8 +446,14 @@ public class MainActivity extends Activity {
         LinearLayout scrollContent = new LinearLayout(this);
         scrollContent.setOrientation(LinearLayout.VERTICAL);
 
-        // Group 1: Mở bằng…, Chia sẻ, Chi tiết
+        // Group 1: Chỉnh sửa (nếu text), Mở bằng…, Chia sẻ, Chi tiết
         LinearLayout group1 = IosSheet.createActionGroup(this);
+        if (TextFileIO.isTextFile(f)) {
+            group1.addView(IosSheet.createActionRow(this, R.drawable.ic_rename, "Chỉnh sửa", false, v -> {
+                dialog.dismiss();
+                openTextEditor(f);
+            }, true));
+        }
         group1.addView(IosSheet.createActionRow(this, R.drawable.ic_open_with, "Mở bằng…", false, v -> {
             dialog.dismiss();
             openWith(f);
@@ -1034,6 +1047,18 @@ public class MainActivity extends Activity {
     // ==========================================
     // REAL FILE I/O OPERATIONS (OUTSIDE MAIN THREAD)
     // ==========================================
+    private void openImageViewer(File f) {
+        Intent intent = new Intent(this, ImageViewerActivity.class);
+        intent.putExtra(ImageViewerActivity.EXTRA_PATH, f.getAbsolutePath());
+        startActivity(intent);
+    }
+
+    private void openTextEditor(File f) {
+        Intent intent = new Intent(this, TextEditorActivity.class);
+        intent.putExtra(TextEditorActivity.EXTRA_PATH, f.getAbsolutePath());
+        startActivity(intent);
+    }
+
     private void openWith(File f) {
         try {
             Uri uri = VelqorFileProvider.getUriForFile(this, "com.velqor.app.fileprovider", f);
@@ -1270,12 +1295,36 @@ public class MainActivity extends Activity {
         card.addView(title);
 
         TextView info = new TextView(this);
-        info.setText("\n• Phiên bản: VELQOR v2.0.6 (Build 8)\n• Thiết kế: Giao diện Liquid Glass Cupertino chuẩn Apple\n• Quyền bộ nhớ: MANAGE_EXTERNAL_STORAGE đã cấp\n• Động cơ xử lý: Pure Android SDK + Coroutines Flow\n• Nhà phát triển: Google DeepMind Pair Programming");
+        info.setText("\n• Phiên bản: VELQOR v2.0.7 (Build 9)\n• Thiết kế: Giao diện Liquid Glass Cupertino chuẩn Apple\n• Quyền bộ nhớ: MANAGE_EXTERNAL_STORAGE đã cấp\n• Động cơ xử lý: Pure Android SDK + Coroutines Flow\n• Nhà phát triển: Google DeepMind Pair Programming");
         info.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
         info.setTextSize(14);
         card.addView(info);
 
         mFileListGroup.addView(card);
+
+        // Thumbnail Settings Card
+        android.content.SharedPreferences prefs = getSharedPreferences("velqor_editor_prefs", MODE_PRIVATE);
+        boolean showThumbs = prefs.getBoolean("show_thumbnails", true);
+
+        LinearLayout cardThumb = IosSheet.createActionGroup(this);
+        cardThumb.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12));
+
+        cardThumb.addView(IosSheet.createActionRow(this, R.drawable.ic_file_image,
+                "Hiện thumbnail: " + (showThumbs ? "Bật" : "Tắt"), false, v -> {
+            prefs.edit().putBoolean("show_thumbnails", !showThumbs).apply();
+            showSettingsTab();
+        }, true));
+
+        long cacheBytes = com.velqor.app.files.ThumbnailCache.getInstance(this).getDiskCacheSize();
+        cardThumb.addView(IosSheet.createActionRow(this, R.drawable.ic_delete,
+                "Xóa bộ nhớ đệm thumbnail (" + FileRowView.formatSize(cacheBytes) + ")", false, v -> {
+            com.velqor.app.files.ThumbnailCache.getInstance(this).clear();
+            Toast.makeText(this, "Đã xóa sạch bộ nhớ đệm thumbnail", Toast.LENGTH_SHORT).show();
+            showSettingsTab();
+        }, false));
+
+        mFileListGroup.addView(cardThumb);
     }
 
     private void checkAndRequestPermissions() {
