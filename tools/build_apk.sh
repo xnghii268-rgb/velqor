@@ -25,7 +25,7 @@ aapt2 link -I "$ANDROID_JAR" \
 
 rm -rf "$BUILD_DIR/classes"/*
 javac -d "$BUILD_DIR/classes" \
-  -cp "$ANDROID_JAR:$BUILD_DIR/classes" \
+  -cp "$ANDROID_JAR:$BUILD_DIR/classes:$BUILD_DIR/libs/*" \
   "$BUILD_DIR/gen_r/com/velqor/app/R.java" \
   "$PROJECT_ROOT/app/src/main/java/com/velqor/app"/*.java \
   "$PROJECT_ROOT/app/src/main/java/com/velqor/app/tokens"/*.java \
@@ -34,7 +34,7 @@ javac -d "$BUILD_DIR/classes" \
   "$PROJECT_ROOT/app/src/main/java/com/velqor/app/ui"/*.java
 
 rm -rf "$BUILD_DIR/dex"/*
-find "$BUILD_DIR/classes" -name "*.class" | xargs d8 --release --min-api 26 --output "$BUILD_DIR/dex"
+find "$BUILD_DIR/classes" -name "*.class" | xargs d8 --release --min-api 26 --output "$BUILD_DIR/dex" "$BUILD_DIR/libs"/shizuku-*.jar
 
 cp "$BUILD_DIR/resources_v212.apk" "$BUILD_DIR/velqor_unaligned_212.apk"
 jar -uf "$BUILD_DIR/velqor_unaligned_212.apk" -C "$BUILD_DIR/dex" classes.dex

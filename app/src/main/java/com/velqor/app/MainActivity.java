@@ -39,6 +39,7 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.velqor.app.archive.ZipManager;
+import rikka.shizuku.Shizuku;
 import com.velqor.app.files.DirectoryWatcher;
 import com.velqor.app.files.FileRepository;
 import com.velqor.app.files.StorageScanner;
@@ -95,12 +96,40 @@ public class MainActivity extends Activity {
     private boolean mIsGridMode = false;
     private long mLastBackPressTime = 0;
 
+    private final Shizuku.OnBinderReceivedListener mShizukuBinderListener = () -> {
+        runOnUiThread(() -> {
+            if ("settings".equals(mCurrentTab)) {
+                showSettingsTab();
+            }
+        });
+    };
+
+    private final Shizuku.OnRequestPermissionResultListener mShizukuPermissionListener = (requestCode, grantResult) -> {
+        runOnUiThread(() -> {
+            if (requestCode == 1001) {
+                if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                    Toast.makeText(this, "Đã cấp quyền Shizuku thành công!", Toast.LENGTH_SHORT).show();
+                    if (WirelessDebugManager.isAndroidDataPath(mCurrentDir)) {
+                        refreshDirectory();
+                    }
+                } else {
+                    Toast.makeText(this, "Chưa cấp quyền Shizuku.", Toast.LENGTH_SHORT).show();
+                }
+                if ("settings".equals(mCurrentTab)) {
+                    showSettingsTab();
+                }
+            }
+        });
+    };
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
-        
         setupEdgeToEdge();
+
+        WirelessDebugManager.addBinderReceivedListener(mShizukuBinderListener);
+        WirelessDebugManager.addRequestPermissionResultListener(mShizukuPermissionListener);
 
         mCurrentDir = Environment.getExternalStorageDirectory();
         mShowHidden = getSharedPreferences("velqor_prefs", MODE_PRIVATE).getBoolean("show_hidden", false);
@@ -283,6 +312,8 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
+        WirelessDebugManager.removeBinderReceivedListener(mShizukuBinderListener);
+        WirelessDebugManager.removeRequestPermissionResultListener(mShizukuPermissionListener);
         super.onDestroy();
         if (mDirectoryWatcher != null) {
             mDirectoryWatcher.destroy();
@@ -1783,10 +1814,9 @@ public class MainActivity extends Activity {
         mFileListGroup.addView(SettingsViewHelper.createGroupHeader(this, "Hệ thống & Android/data"));
         LinearLayout gSystem = SettingsViewHelper.createGroupCard(this);
 
-        boolean isPaired = WirelessDebugManager.isPaired(this);
-        String pairStatus = isPaired ? "Đã ghép nối (" + WirelessDebugManager.getPairedDeviceName(this) + ")" : "Ghép nối 6 mã";
+        String shizukuStatus = WirelessDebugManager.getShizukuStatus(this);
         gSystem.addView(SettingsViewHelper.createRow(this, R.drawable.ic_wifi, 0xFF007AFF,
-                "Gỡ lỗi qua Wi-Fi", pairStatus, true, v -> showWirelessDebugSheet(), false));
+                "Truy cập Android/data (Shizuku)", shizukuStatus, true, v -> showWirelessDebugSheet(), false));
         mFileListGroup.addView(gSystem);
 
         mFileListGroup.addView(SettingsViewHelper.createGroupHeader(this, "Hiệu năng"));
@@ -1840,14 +1870,14 @@ public class MainActivity extends Activity {
         LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
 
         TextView title = new TextView(this);
-        title.setText("Gỡ lỗi qua Wi-Fi");
+        title.setText("Truy cập Android/data & obb");
         title.setTextSize(20);
         title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
         TextView sub = new TextView(this);
-        sub.setText("Ghép nối không dây để mở khóa truy cập toàn diện /Android/data");
+        sub.setText("Phương án Shizuku IPC (Hỗ trợ Android 11 đến 16 không cần Root)");
         sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         sub.setTextSize(13);
         sheet.addView(sub);
@@ -1855,75 +1885,85 @@ public class MainActivity extends Activity {
         ScrollView sv = new ScrollView(this);
         sv.setVerticalScrollBarEnabled(false);
         LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 360));
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 380));
         svLp.topMargin = ThemeTokens.dp(this, 12);
         sv.setLayoutParams(svLp);
 
         LinearLayout content = new LinearLayout(this);
         content.setOrientation(LinearLayout.VERTICAL);
 
-        LinearLayout card1 = SettingsViewHelper.createGroupCard(this);
-        boolean isDebugOn = WirelessDebugManager.isDebugEnabled(this);
-        card1.addView(SettingsViewHelper.createSubtitledSwitchRow(this,
-                "Gỡ lỗi qua Wi-Fi", "Bật chế độ gỡ lỗi khi có kết nối Wi-Fi", isDebugOn,
-                (switchView, isChecked) -> {
-                    WirelessDebugManager.setDebugEnabled(this, isChecked);
-                    try {
-                        startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
-                    } catch (Exception ignored) {}
-                }));
-        content.addView(card1);
+        content.addView(SettingsViewHelper.createGroupHeader(this, "Trạng thái dịch vụ"));
+        LinearLayout cardStatus = SettingsViewHelper.createGroupCard(this);
 
-        LinearLayout card2 = SettingsViewHelper.createGroupCard(this);
-        LinearLayout.LayoutParams c2Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        c2Lp.topMargin = ThemeTokens.dp(this, 12);
-        card2.setLayoutParams(c2Lp);
+        cardStatus.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_gear, 0xFF007AFF,
+                "Trạng thái Shizuku", WirelessDebugManager.getShizukuStatus(this), false, null, true));
 
-        card2.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+        boolean isGranted = WirelessDebugManager.isShizukuPermissionGranted();
+        cardStatus.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_info, isGranted ? 0xFF34C759 : 0xFFFF9500,
+                "Quyền Shell UID 2000", isGranted ? "Đã cấp quyền (Hoạt động)" : "Chưa cấp quyền", false, null, true));
+
+        cardStatus.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
                 "Tên thiết bị", WirelessDebugManager.getDeviceName(), false, null, true));
 
         String ipAndPort = WirelessDebugManager.getDeviceIp(this) + ":" + WirelessDebugManager.getPairingPort(this);
-        card2.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+        cardStatus.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
                 "Địa chỉ IP và cổng", ipAndPort, false, null, false));
-        content.addView(card2);
+        content.addView(cardStatus);
 
-        LinearLayout card3 = SettingsViewHelper.createGroupCard(this);
-        LinearLayout.LayoutParams c3Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        c3Lp.topMargin = ThemeTokens.dp(this, 12);
-        card3.setLayoutParams(c3Lp);
+        content.addView(SettingsViewHelper.createGroupHeader(this, "Thao tác kết nối & cấp quyền"));
+        LinearLayout cardActions = SettingsViewHelper.createGroupCard(this);
 
-        card3.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
-                "Ghép nối thiết bị bằng mã QR", "Ghép nối các thiết bị mới bằng trình quét mã QR",
-                false, v -> Toast.makeText(this, "Hãy dùng ghép nối bằng mã gồm 6 chữ số bên dưới", Toast.LENGTH_SHORT).show(), true));
+        boolean isRunning = WirelessDebugManager.isShizukuRunning();
+        if (isRunning && !isGranted) {
+            cardActions.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_star, 0xFF34C759,
+                    "Cấp quyền Shizuku", "Chạm để mở hộp thoại cấp quyền của Shizuku", true, v -> {
+                        WirelessDebugManager.requestShizukuPermission(1001);
+                    }, true));
+        }
 
-        card3.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
-                "Ghép nối thiết bị bằng mã ghép nối", "Ghép nối các thiết bị mới bằng mã gồm 6 chữ số",
-                true, v -> showPairingCodeDialog(dialog), false));
-        content.addView(card3);
+        cardActions.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_wifi, 0xFF5856D6,
+                "Mở ứng dụng Shizuku", "Khởi động dịch vụ hoặc kiểm tra Shizuku", true, v -> {
+                    try {
+                        Intent launch = getPackageManager().getLaunchIntentForPackage("moe.shizuku.privileged.api");
+                        if (launch != null) {
+                            startActivity(launch);
+                        } else {
+                            Intent web = new Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app"));
+                            startActivity(web);
+                        }
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Không thể mở Shizuku: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                }, true));
 
-        TextView headerPaired = SettingsViewHelper.createGroupHeader(this, "Thiết bị đã ghép nối");
-        content.addView(headerPaired);
+        cardActions.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+                "Mở Cài đặt cho nhà phát triển", "Bật Gỡ lỗi qua Wi-Fi để khởi chạy Shizuku", true, v -> {
+                    try {
+                        startActivity(new Intent(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS));
+                    } catch (Exception e) {
+                        Toast.makeText(this, "Không thể mở cài đặt: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+                    }
+                }, true));
 
-        LinearLayout card4 = SettingsViewHelper.createGroupCard(this);
-        boolean isPaired = WirelessDebugManager.isPaired(this);
-        if (isPaired) {
-            String pairedName = WirelessDebugManager.getPairedDeviceName(this);
-            card4.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_gear, 0xFF5856D6,
-                    pairedName, "Đã mở khóa /storage/emulated/0/Android/data", true, v -> {
-                        IosSheet.showConfirmDialog(this, "Hủy ghép nối",
-                                "Bạn có muốn hủy ghép nối thiết bị '" + pairedName + "' không?", "Hủy ghép nối", () -> {
+        cardActions.addView(SettingsViewHelper.createSubtitledRow(this, 0, 0,
+                "Ghép nối thiết bị bằng mã 6 chữ số", "Thiết lập cổng và mã ghép nối gỡ lỗi Wi-Fi", true,
+                v -> showPairingCodeDialog(dialog), false));
+        content.addView(cardActions);
+
+        if (isGranted) {
+            content.addView(SettingsViewHelper.createGroupHeader(this, "Thiết bị đã kết nối"));
+            LinearLayout cardPaired = SettingsViewHelper.createGroupCard(this);
+            cardPaired.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_star, 0xFF34C759,
+                    "Shizuku Binder IPC", "Đã mở khóa /storage/emulated/0/Android/data & obb", true, v -> {
+                        IosSheet.showConfirmDialog(this, "Hủy kết nối",
+                                "Bạn có muốn hủy ghép nối Shizuku không?", "Hủy", () -> {
                                     WirelessDebugManager.unpair(this);
-                                    Toast.makeText(this, "Đã hủy ghép nối thiết bị", Toast.LENGTH_SHORT).show();
                                     dialog.dismiss();
                                     showSettingsTab();
                                 });
                     }, false));
-        } else {
-            card4.addView(SettingsViewHelper.createSubtitledRow(this, R.drawable.ic_info, 0xFF8E8E93,
-                    "Chưa có thiết bị ghép nối", "Chạm để ghép nối bằng mã 6 chữ số", true,
-                    v -> showPairingCodeDialog(dialog), false));
+            content.addView(cardPaired);
         }
-        content.addView(card4);
 
         sv.addView(content);
         sheet.addView(sv);
@@ -2075,7 +2115,15 @@ public class MainActivity extends Activity {
                 return;
             }
             WirelessDebugManager.setPaired(this, true, port, code);
-            Toast.makeText(this, "Ghép nối thành công! Đã mở khóa quyền truy cập Android/data.", Toast.LENGTH_LONG).show();
+            if (WirelessDebugManager.isShizukuRunning()) {
+                if (!WirelessDebugManager.isShizukuPermissionGranted()) {
+                    WirelessDebugManager.requestShizukuPermission(1001);
+                } else {
+                    Toast.makeText(this, "Đã lưu cấu hình. Quyền Shizuku đang hoạt động!", Toast.LENGTH_LONG).show();
+                }
+            } else {
+                Toast.makeText(this, "Đã lưu cổng và mã. Hãy khởi chạy Shizuku bằng Gỡ lỗi Wi-Fi.", Toast.LENGTH_LONG).show();
+            }
             dialog.dismiss();
             if (parentDialog != null) parentDialog.dismiss();
             showSettingsTab();

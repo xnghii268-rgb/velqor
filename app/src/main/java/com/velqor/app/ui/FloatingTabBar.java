@@ -1,5 +1,8 @@
 package com.velqor.app.ui;
 
+import android.animation.Animator;
+import android.animation.AnimatorListenerAdapter;
+import android.animation.ValueAnimator;
 import android.content.Context;
 import android.graphics.Canvas;
 import android.graphics.LinearGradient;
@@ -15,6 +18,7 @@ import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.ViewOutlineProvider;
+import android.view.animation.LinearInterpolator;
 import android.view.animation.OvershootInterpolator;
 import android.widget.FrameLayout;
 import android.widget.ImageView;
@@ -55,6 +59,7 @@ public class FloatingTabBar extends FrameLayout {
     private String mCurrentTab = "files";
     private int mCurrentIndex = 0;
     private OnTabSelectedListener mListener;
+    private ValueAnimator mIndicatorAnimator;
 
     public FloatingTabBar(Context context) {
         super(context);
@@ -87,8 +92,9 @@ public class FloatingTabBar extends FrameLayout {
         addView(mBackdropView, new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
         mWaterDropIndicator = new WaterDropView(getContext());
-        int dropHeight = ThemeTokens.dp(getContext(), ThemeTokens.HEIGHT_WATER_DROP);
-        FrameLayout.LayoutParams dropLp = new FrameLayout.LayoutParams(dropHeight, dropHeight);
+        int dropHeight = ThemeTokens.dp(getContext(), 42);
+        int dropWidth = ThemeTokens.dp(getContext(), 58);
+        FrameLayout.LayoutParams dropLp = new FrameLayout.LayoutParams(dropWidth, dropHeight);
         dropLp.gravity = Gravity.CENTER_VERTICAL;
         addView(mWaterDropIndicator, dropLp);
 
@@ -177,13 +183,22 @@ public class FloatingTabBar extends FrameLayout {
             switch (event.getAction()) {
                 case MotionEvent.ACTION_DOWN:
                     if (index == mCurrentIndex) {
-                        mWaterDropIndicator.animate().scaleX(1.06f).scaleY(1.06f).setDuration(80).start();
+                        mWaterDropIndicator.animate()
+                                .scaleX(1.07f)
+                                .scaleY(0.93f)
+                                .setDuration(90)
+                                .start();
                     }
                     break;
                 case MotionEvent.ACTION_UP:
                 case MotionEvent.ACTION_CANCEL:
                     if (index == mCurrentIndex) {
-                        mWaterDropIndicator.animate().scaleX(1.0f).scaleY(1.0f).setDuration(120).start();
+                        mWaterDropIndicator.animate()
+                                .scaleX(1.0f)
+                                .scaleY(1.0f)
+                                .setDuration(200)
+                                .setInterpolator(new OvershootInterpolator(1.4f))
+                                .start();
                     }
                     break;
             }
@@ -220,8 +235,8 @@ public class FloatingTabBar extends FrameLayout {
             float targetOutlineAlpha = isSelected ? 0.0f : 1.0f;
 
             if (animated) {
-                ivFilled.animate().alpha(targetFilledAlpha).setDuration(150).start();
-                ivOutline.animate().alpha(targetOutlineAlpha).setDuration(150).start();
+                ivFilled.animate().alpha(targetFilledAlpha).setDuration(160).start();
+                ivOutline.animate().alpha(targetOutlineAlpha).setDuration(160).start();
             } else {
                 ivFilled.setAlpha(targetFilledAlpha);
                 ivOutline.setAlpha(targetOutlineAlpha);
@@ -233,9 +248,9 @@ public class FloatingTabBar extends FrameLayout {
         if (index >= 0 && index < mTabViews.size()) {
             View tab = mTabViews.get(index);
             if (tab.getWidth() > 0) {
-                int dropW = tab.getWidth() - ThemeTokens.dp(getContext(), 8);
+                int dropW = Math.min(tab.getWidth() - ThemeTokens.dp(getContext(), 16), ThemeTokens.dp(getContext(), 58));
+                int dropH = ThemeTokens.dp(getContext(), 42);
                 FrameLayout.LayoutParams lp = (FrameLayout.LayoutParams) mWaterDropIndicator.getLayoutParams();
-                int dropH = ThemeTokens.dp(getContext(), ThemeTokens.HEIGHT_WATER_DROP);
                 if (lp != null && (lp.width != dropW || lp.height != dropH)) {
                     lp.width = dropW;
                     lp.height = dropH;
@@ -249,53 +264,107 @@ public class FloatingTabBar extends FrameLayout {
         if (index < 0 || index >= mTabViews.size()) return;
         View targetTab = mTabViews.get(index);
         adjustIndicatorWidth(index);
-        int targetX = targetTab.getLeft() + ThemeTokens.dp(getContext(), 4);
+
+        int dropW = mWaterDropIndicator.getWidth() > 0 ? mWaterDropIndicator.getWidth() : ThemeTokens.dp(getContext(), 58);
+        int targetX = targetTab.getLeft() + (targetTab.getWidth() - dropW) / 2;
+
+        if (mIndicatorAnimator != null && mIndicatorAnimator.isRunning()) {
+            mIndicatorAnimator.cancel();
+        }
 
         if (animate) {
-            mWaterDropIndicator.animate()
-                    .translationX(targetX)
-                    .scaleX(1.20f)
-                    .scaleY(0.94f)
-                    .setDuration(130)
-                    .withEndAction(() -> {
-                        mWaterDropIndicator.animate()
-                                .scaleX(1.0f)
-                                .scaleY(1.0f)
-                                .setDuration(180)
-                                .setInterpolator(new OvershootInterpolator(1.15f))
-                                .start();
-                    })
-                    .start();
+            float startX = mWaterDropIndicator.getTranslationX();
+            float distance = targetX - startX;
+
+            if (Math.abs(distance) < 1.0f) {
+                mWaterDropIndicator.setTranslationX(targetX);
+                mWaterDropIndicator.setScaleX(1.0f);
+                mWaterDropIndicator.setScaleY(1.0f);
+                return;
+            }
+
+            mIndicatorAnimator = ValueAnimator.ofFloat(0f, 1f);
+            mIndicatorAnimator.setDuration(290);
+            mIndicatorAnimator.setInterpolator(new LinearInterpolator());
+            mIndicatorAnimator.addUpdateListener(animation -> {
+                float t = (Float) animation.getAnimatedValue();
+
+                float easedProgress = t < 0.5f ? 4.0f * t * t * t : 1.0f - (float) Math.pow(-2.0f * t + 2.0f, 3.0) / 2.0f;
+                float currentX = startX + distance * easedProgress;
+                mWaterDropIndicator.setTranslationX(currentX);
+
+                float sx;
+                float sy;
+                if (t <= 0.62f) {
+                    float flightPhase = t / 0.62f;
+                    float stretchWave = (float) Math.sin(flightPhase * Math.PI);
+                    float maxStretch = Math.min(0.25f, 0.12f + Math.abs(distance) / 1000f);
+                    sx = 1.0f + maxStretch * stretchWave;
+                    sy = 1.0f - (maxStretch * 0.50f) * stretchWave;
+                } else {
+                    float settlePhase = (t - 0.62f) / 0.38f;
+                    float squashWave = (float) (Math.sin(settlePhase * Math.PI * 1.5) * Math.exp(-settlePhase * 3.2));
+                    sx = 1.0f - 0.10f * squashWave;
+                    sy = 1.0f + 0.07f * squashWave;
+                }
+                mWaterDropIndicator.setScaleX(sx);
+                mWaterDropIndicator.setScaleY(sy);
+            });
+
+            mIndicatorAnimator.addListener(new AnimatorListenerAdapter() {
+                @Override
+                public void onAnimationEnd(Animator animation) {
+                    mWaterDropIndicator.setTranslationX(targetX);
+                    mWaterDropIndicator.setScaleX(1.0f);
+                    mWaterDropIndicator.setScaleY(1.0f);
+                }
+
+                @Override
+                public void onAnimationCancel(Animator animation) {
+                    mWaterDropIndicator.setTranslationX(targetX);
+                    mWaterDropIndicator.setScaleX(1.0f);
+                    mWaterDropIndicator.setScaleY(1.0f);
+                }
+            });
+
+            mIndicatorAnimator.start();
 
             FrameLayout iconBox = (FrameLayout) ((FrameLayout) targetTab).getChildAt(0);
-            iconBox.animate().scaleX(1.15f).scaleY(1.15f).setDuration(100).withEndAction(() -> {
-                iconBox.animate().scaleX(1.0f).scaleY(1.0f).setDuration(140).start();
-            }).start();
+            iconBox.animate()
+                    .scaleX(1.16f)
+                    .scaleY(1.16f)
+                    .setDuration(120)
+                    .withEndAction(() -> iconBox.animate()
+                            .scaleX(1.0f)
+                            .scaleY(1.0f)
+                            .setDuration(170)
+                            .setInterpolator(new OvershootInterpolator(1.6f))
+                            .start())
+                    .start();
         } else {
             mWaterDropIndicator.setTranslationX(targetX);
+            mWaterDropIndicator.setScaleX(1.0f);
+            mWaterDropIndicator.setScaleY(1.0f);
         }
     }
 
     private static class WaterDropView extends View {
-        private final Paint mPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
-        private final Paint mStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint mBodyPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final Paint mHighlightPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint mBottomGlowPaint = new Paint(Paint.ANTI_ALIAS_FLAG);
+        private final Paint mStrokePaint = new Paint(Paint.ANTI_ALIAS_FLAG);
         private final RectF mRect = new RectF();
         private final Path mClipPath = new Path();
 
         public WaterDropView(Context context) {
             super(context);
-            mPaint.setStyle(Paint.Style.FILL);
-            int accent = ThemeTokens.getAccentColor(context);
-            int dropAlpha = ThemeTokens.isDarkMode(context) ? 0x24000000 : 0x1A000000;
-            mPaint.setColor((accent & 0x00FFFFFF) | dropAlpha);
+            mBodyPaint.setStyle(Paint.Style.FILL);
+            mHighlightPaint.setStyle(Paint.Style.FILL);
+            mBottomGlowPaint.setStyle(Paint.Style.FILL);
 
             mStrokePaint.setStyle(Paint.Style.STROKE);
-            mStrokePaint.setStrokeWidth(Math.max(1, ThemeTokens.dp(context, 1) / 2));
-            boolean isDark = ThemeTokens.isDarkMode(context);
-            mStrokePaint.setColor(isDark ? ThemeTokens.COLOR_DROP_BORDER : 0x2E000000);
-
-            mHighlightPaint.setStyle(Paint.Style.FILL);
+            float strokeW = Math.max(1f, ThemeTokens.dp(context, 1) * 0.75f);
+            mStrokePaint.setStrokeWidth(strokeW);
         }
 
         @Override
@@ -307,13 +376,47 @@ public class FloatingTabBar extends FrameLayout {
             mClipPath.addRoundRect(mRect, rad, rad, Path.Direction.CW);
 
             if (w > 0 && h > 0) {
+                Context ctx = getContext();
+                int accent = ThemeTokens.getAccentColor(ctx);
+                boolean isDark = ThemeTokens.isDarkMode(ctx);
+
+                int bodyTopAlpha = isDark ? 0x38000000 : 0x2C000000;
+                int bodyBottomAlpha = isDark ? 0x16000000 : 0x14000000;
+                LinearGradient bodyShader = new LinearGradient(
+                        0, 0, 0, h,
+                        new int[]{ (accent & 0x00FFFFFF) | bodyTopAlpha, (accent & 0x00FFFFFF) | bodyBottomAlpha },
+                        null,
+                        Shader.TileMode.CLAMP
+                );
+                mBodyPaint.setShader(bodyShader);
+
+                int hlTop = isDark ? 0x48FFFFFF : 0x36FFFFFF;
                 LinearGradient hlShader = new LinearGradient(
-                        0, 0, 0, h * 0.55f,
-                        new int[]{0x1AFFFFFF, 0x00FFFFFF},
+                        0, 0, 0, h * 0.48f,
+                        new int[]{ hlTop, 0x00FFFFFF },
                         null,
                         Shader.TileMode.CLAMP
                 );
                 mHighlightPaint.setShader(hlShader);
+
+                int glowColor = (accent & 0x00FFFFFF) | (isDark ? 0x22000000 : 0x18000000);
+                LinearGradient glowShader = new LinearGradient(
+                        0, h * 0.65f, 0, h,
+                        new int[]{ 0x00000000, glowColor },
+                        null,
+                        Shader.TileMode.CLAMP
+                );
+                mBottomGlowPaint.setShader(glowShader);
+
+                int strokeTop = isDark ? 0x60FFFFFF : 0x38000000;
+                int strokeBottom = isDark ? 0x18FFFFFF : 0x12000000;
+                LinearGradient strokeShader = new LinearGradient(
+                        0, 0, 0, h,
+                        new int[]{ strokeTop, strokeBottom },
+                        null,
+                        Shader.TileMode.CLAMP
+                );
+                mStrokePaint.setShader(strokeShader);
             }
         }
 
@@ -324,8 +427,9 @@ public class FloatingTabBar extends FrameLayout {
 
             canvas.save();
             canvas.clipPath(mClipPath);
-            canvas.drawRect(mRect, mPaint);
-            canvas.drawRect(0, 0, getWidth(), getHeight() * 0.55f, mHighlightPaint);
+            canvas.drawRect(mRect, mBodyPaint);
+            canvas.drawRect(0, 0, getWidth(), getHeight() * 0.48f, mHighlightPaint);
+            canvas.drawRect(0, getHeight() * 0.65f, getWidth(), getHeight(), mBottomGlowPaint);
             canvas.restore();
 
             float half = mStrokePaint.getStrokeWidth() / 2f;
