@@ -16,10 +16,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
+import com.velqor.core.designsystem.theme.IosBody
+import com.velqor.core.designsystem.theme.IosHeadline
+import com.velqor.core.designsystem.theme.IosSubhead
 import com.velqor.core.designsystem.theme.LocalVelqorColors
 
 @Composable
@@ -42,28 +43,28 @@ fun VelqorEmptyState(
         Icon(
             imageVector = icon,
             contentDescription = null,
-            modifier = Modifier.size(56.dp),
-            tint = colors.textTertiary
+            modifier = Modifier.size(64.dp),
+            tint = colors.secondaryLabel.copy(alpha = 0.4f)
         )
 
         Spacer(modifier = Modifier.height(16.dp))
 
         Text(
             text = title,
-            fontSize = 17.sp,
-            fontWeight = FontWeight.SemiBold,
-            color = colors.textPrimary,
+            style = IosHeadline,
+            color = colors.label,
             textAlign = TextAlign.Center
         )
 
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = subtitle,
-            fontSize = 14.sp,
-            color = colors.textSecondary,
-            textAlign = TextAlign.Center
-        )
+        if (subtitle.isNotBlank()) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = subtitle,
+                style = IosSubhead,
+                color = colors.secondaryLabel,
+                textAlign = TextAlign.Center
+            )
+        }
 
         if (actionButton != null) {
             Spacer(modifier = Modifier.height(20.dp))
