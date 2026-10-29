@@ -173,4 +173,33 @@ public final class FileRepository {
             }
         }
     }
+
+    public static class FolderInfo {
+        public long totalBytes = 0;
+        public int fileCount = 0;
+        public int dirCount = 0;
+    }
+
+    public static FolderInfo calculateFolderInfo(File dir) {
+        FolderInfo info = new FolderInfo();
+        if (dir == null || !dir.exists() || !dir.isDirectory()) {
+            return info;
+        }
+        calculateFolderInfoRecursive(dir, info);
+        return info;
+    }
+
+    private static void calculateFolderInfoRecursive(File dir, FolderInfo info) {
+        File[] children = dir.listFiles();
+        if (children == null) return;
+        for (File child : children) {
+            if (child.isDirectory()) {
+                info.dirCount++;
+                calculateFolderInfoRecursive(child, info);
+            } else {
+                info.fileCount++;
+                info.totalBytes += child.length();
+            }
+        }
+    }
 }

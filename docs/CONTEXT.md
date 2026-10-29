@@ -1,4 +1,4 @@
-# CONTEXT — VELQOR PRO (v2.0.11)
+# CONTEXT — VELQOR PRO (v2.0.12)
 
 ## 1. Dự án là gì
 - **Slug**: `velqor`
@@ -14,34 +14,22 @@
   - `tokens/ThemeTokens.java`: Toàn bộ token màu sắc, kích thước, alpha, radius.
   - `security/`: `VaultManager` (AES-256-GCM + PBKDF2), `HashUtils` (SHA-256 stream).
   - `archive/`: `ZipManager` (Nén, giải nén, chống Zip Slip).
-  - `files/`: `FileRepository` (Duyệt, copy, move, xóa, đổi tên, sắp xếp), `TextFileIO`, `FileCreator`, `ThumbnailCache`.
+  - `files/`: `FileRepository` (Duyệt, copy, move, xóa, đổi tên, `calculateFolderInfo` đệ quy dung lượng/số lượng), `TextFileIO`, `FileCreator`, `ThumbnailCache`.
   - `ui/`: `FloatingTabBar`, `BlurBackdropView`, `ImageViewerActivity`, `TextEditorActivity`, `NewItemSheet`, `HeaderView`, `FileRowView`, `IosSheet`.
-  - `MainActivity.java`: Điều phối vòng đời, cử chỉ lùi hệ thống, ẩn/hiện thanh nổi khi cuộn, lớp mờ gradient đáy.
+  - `MainActivity.java`: Điều phối vòng đời, cử chỉ lùi hệ thống, chi tiết thư mục đầy đủ.
 - **Quyền**: `MANAGE_EXTERNAL_STORAGE`, `REQUEST_INSTALL_PACKAGES` với `VelqorFileProvider`.
 
 ## 3. Cách chạy & Đóng gói
-- Link resources: `aapt2 link --version-code 13 --version-name "2.0.11"`
+- Link resources: `aapt2 link --version-code 14 --version-name "2.0.12"`
 - Biên dịch mã: `javac -cp android.jar` + `d8 --release --min-api 26`
 - Ký & Đóng gói: `apksigner sign --ks debug.keystore`
-- Test suite: `bash tools/test_runner.sh` (70/70 tests passed - 100%).
+- Test suite: `bash tools/test_runner.sh` (79/79 tests passed - 100%).
 
-## 4. Trạng thái hiện tại (v2.0.11 - Build 13)
-- **MILESTONE NAVBAR-POLISH hoàn tất**:
-  1. **Sửa viền ám đỏ & Shadow**:
-     - Loại bỏ mọi nguy cơ ám màu ở góc trên-trái. Viền kính dùng `LinearGradient` trắng alpha thuần khiết: 0.35 ở trên-trái → 0.05 ở dưới-phải.
-     - Đặt bóng đổ trung tính chuẩn đen `0x20000000`/`0x26000000` qua `setOutlineAmbientShadowColor` / `setOutlineSpotShadowColor` (API 28+).
-  2. **Giọt nước mỏng, nhẹ (WaterDropView)**:
-     - Chiều cao 48dp (căn giữa dọc thanh 64dp), rộng bằng tab - 8dp, bo tròn hoàn toàn 24dp.
-     - Nền accent alpha 0.14, viền 0.5dp trắng alpha 0.25 (bỏ viền xanh dày), highlight nửa trên gradient trắng 0.10 → 0.
-     - Hiệu ứng co giãn khi trượt (`scaleX 1.20, scaleY 0.94`) và phồng nhẹ khi nhấn giữ.
-  3. **Icon & Nhãn chuẩn Apple**:
-     - Tab chưa chọn: icon OUTLINE màu `secondaryLabel` (alpha ~0.60), nhãn cùng màu.
-     - Tab đang chọn: icon FILLED màu accent, nhãn accent. Chuyển trạng thái crossfade 150ms mượt mà.
-     - Bổ sung đủ 5 cặp vector outline/filled: Tệp, Nén, Vault, Hash, Cài đặt.
-  4. **Lớp mờ dần đáy màn hình (Bottom Gradient Scrim)**:
-     - Gradient trong suốt → 90% background, phủ dưới thanh nổi và trên danh sách, không chặn tương tác chạm vào list.
-  5. **Kính thật (RenderEffect API 31+)**:
-     - RenderNode blur 24dp, tint tối 0.75 + tint trắng 0.06, fallback 0.94-0.96 cho API < 31.
-  6. **Tự động ẩn/hiện khi cuộn**:
-     - Cuộn xuống nhanh: trượt xuống ẩn kèm giảm alpha 250ms. Cuộn lên, chạm đáy hoặc về đỉnh: hiện lại. Tôn trọng Reduce Motion.
-  7. **Output APK**: `/sdcard/AntiGravity/velqor-v2.0.11.apk` (497 KB).
+## 4. Trạng thái hiện tại (v2.0.12 - Build 14)
+- **HOTFIX Kích thước & Nội dung chi tiết thư mục hoàn tất**:
+  1. Khắc phục lỗi hiển thị kích thước thư mục chỉ lấy inode (3.4 KB / 4096 bytes) trong hộp thoại "Chi tiết tệp tin":
+     - `FileRepository.calculateFolderInfo(File dir)`: Tính toán đệ quy toàn bộ tổng dung lượng thực tế (`totalBytes`), số lượng tệp tin (`fileCount`) và số lượng thư mục con (`dirCount`).
+     - Hộp thoại hiển thị ngay lập tức với trạng thái "Đang tính toán...", tính toán ngoài luồng UI và cập nhật kết quả chính xác, mượt mà khi hoàn tất.
+     - Bổ sung trường "Nội dung": Thống kê chi tiết số tệp và số thư mục con.
+  2. Bổ sung bộ kiểm thử `testFolderInfoCalculation` (79/79 test passed 100%).
+  3. **Output APK**: `/sdcard/AntiGravity/velqor-v2.0.12.apk` (497 KB).

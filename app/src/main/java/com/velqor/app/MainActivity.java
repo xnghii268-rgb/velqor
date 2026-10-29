@@ -696,7 +696,7 @@ public class MainActivity extends Activity {
         LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
 
         TextView title = new TextView(this);
-        title.setText("Chi tiết tệp tin");
+        title.setText(f.isDirectory() ? "Chi tiết thư mục" : "Chi tiết tệp tin");
         title.setTextSize(20);
         title.setTextColor(ThemeTokens.COLOR_LABEL);
         title.setTypeface(Typeface.DEFAULT_BOLD);
@@ -708,10 +708,35 @@ public class MainActivity extends Activity {
 
         addDetailItem(card, "Tên", f.getName());
         addDetailItem(card, "Đường dẫn", f.getAbsolutePath());
-        addDetailItem(card, "Kích thước", FileRowView.formatSize(f.length()) + " (" + f.length() + " bytes)");
-        addDetailItem(card, "Sửa đổi lần cuối", new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(new Date(f.lastModified())));
-        addDetailItem(card, "Loại tệp", f.isDirectory() ? "Thư mục" : getMimeType(f));
-        addDetailItem(card, "Quyền", (f.canRead() ? "Đọc " : "") + (f.canWrite() ? "Ghi " : ""));
+
+        if (f.isDirectory()) {
+            TextView tvSize = addDetailItem(card, "Kích thước", "Đang tính toán...");
+            int directCount = 0;
+            try {
+                String[] list = f.list();
+                if (list != null) directCount = list.length;
+            } catch (Exception ignored) {}
+            TextView tvContent = addDetailItem(card, "Nội dung", directCount + " mục trực tiếp");
+            addDetailItem(card, "Sửa đổi lần cuối", new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(new Date(f.lastModified())));
+            addDetailItem(card, "Loại tệp", "Thư mục");
+            addDetailItem(card, "Quyền", (f.canRead() ? "Đọc " : "") + (f.canWrite() ? "Ghi " : ""));
+
+            // Calculate total folder size recursively in background
+            new Thread(() -> {
+                FileRepository.FolderInfo info = FileRepository.calculateFolderInfo(f);
+                runOnUiThread(() -> {
+                    if (dialog.isShowing()) {
+                        tvSize.setText(FileRowView.formatSize(info.totalBytes) + " (" + String.format(Locale.getDefault(), "%,d", info.totalBytes) + " bytes)");
+                        tvContent.setText(String.format(Locale.getDefault(), "%d tệp, %d thư mục con", info.fileCount, info.dirCount));
+                    }
+                });
+            }).start();
+        } else {
+            addDetailItem(card, "Kích thước", FileRowView.formatSize(f.length()) + " (" + String.format(Locale.getDefault(), "%,d", f.length()) + " bytes)");
+            addDetailItem(card, "Sửa đổi lần cuối", new SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()).format(new Date(f.lastModified())));
+            addDetailItem(card, "Loại tệp", getMimeType(f));
+            addDetailItem(card, "Quyền", (f.canRead() ? "Đọc " : "") + (f.canWrite() ? "Ghi " : ""));
+        }
 
         sheet.addView(card);
 
@@ -728,7 +753,7 @@ public class MainActivity extends Activity {
         IosSheet.show(dialog, sheet);
     }
 
-    private void addDetailItem(LinearLayout container, String key, String val) {
+    private TextView addDetailItem(LinearLayout container, String key, String val) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
         row.setPadding(0, ThemeTokens.dp(this, 4), 0, ThemeTokens.dp(this, 4));
@@ -746,6 +771,7 @@ public class MainActivity extends Activity {
         row.addView(v);
 
         container.addView(row);
+        return v;
     }
 
     private void showSha256Sheet(File f, String hex) {

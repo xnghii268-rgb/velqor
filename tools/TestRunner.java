@@ -54,6 +54,7 @@ public class TestRunner {
         testTextFileIOOperations();
         testThumbnailKeyAndTextFileDetection();
         testFileCreatorOperations();
+        testFolderInfoCalculation();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -494,6 +495,54 @@ public class TestRunner {
                 for (File f : files) f.delete();
             }
             testDir.delete();
+        }
+    }
+
+    private static void testFolderInfoCalculation() throws Exception {
+        System.out.println("[12/12] Testing FileRepository Recursive Folder Info (Total size & Counts)...");
+
+        File rootDir = new File(System.getProperty("java.io.tmpdir"), "velqor_folder_info_" + System.currentTimeMillis());
+        rootDir.mkdirs();
+        try {
+            // Null & Empty tests
+            FileRepository.FolderInfo infoNull = FileRepository.calculateFolderInfo(null);
+            assertEquals("Null folder bytes", 0L, infoNull.totalBytes);
+            assertEquals("Null folder files", 0, infoNull.fileCount);
+            assertEquals("Null folder dirs", 0, infoNull.dirCount);
+
+            FileRepository.FolderInfo infoEmpty = FileRepository.calculateFolderInfo(rootDir);
+            assertEquals("Empty folder bytes", 0L, infoEmpty.totalBytes);
+            assertEquals("Empty folder files", 0, infoEmpty.fileCount);
+            assertEquals("Empty folder dirs", 0, infoEmpty.dirCount);
+
+            // Populate structure
+            File f1 = new File(rootDir, "file1.bin");
+            try (FileOutputStream fos = new FileOutputStream(f1)) {
+                fos.write(new byte[100]);
+            }
+
+            File subDir = new File(rootDir, "sub");
+            subDir.mkdirs();
+            File f2 = new File(subDir, "file2.bin");
+            try (FileOutputStream fos = new FileOutputStream(f2)) {
+                fos.write(new byte[250]);
+            }
+
+            File subDir2 = new File(subDir, "sub2");
+            subDir2.mkdirs();
+            File f3 = new File(subDir2, "file3.bin");
+            try (FileOutputStream fos = new FileOutputStream(f3)) {
+                fos.write(new byte[400]);
+            }
+
+            // Calculate recursive size
+            FileRepository.FolderInfo info = FileRepository.calculateFolderInfo(rootDir);
+            assertEquals("Total recursive size", 750L, info.totalBytes);
+            assertEquals("Total file count", 3, info.fileCount);
+            assertEquals("Total subdir count", 2, info.dirCount);
+
+        } finally {
+            FileRepository.deleteRecursive(rootDir);
         }
     }
 
