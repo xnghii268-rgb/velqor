@@ -885,26 +885,20 @@ public class MainActivity extends Activity {
     // MODAL BOTTOM SHEET SYSTEM (MILESTONE UI-REFIT-2)
     // ==========================================
     private Dialog createBaseIosSheet() {
-        Dialog dialog = new Dialog(this);
+        Dialog dialog = new Dialog(this, android.R.style.Theme_Translucent_NoTitleBar);
         dialog.requestWindowFeature(Window.FEATURE_NO_TITLE);
         dialog.setCanceledOnTouchOutside(true);
-
-        Window window = dialog.getWindow();
-        if (window != null) {
-            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
-            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-            window.setGravity(Gravity.BOTTOM);
-            window.setWindowAnimations(android.R.style.Animation_InputMethod); // Smooth spring slide up/down
-            window.addFlags(WindowManager.LayoutParams.FLAG_DIM_BEHIND);
-            window.setDimAmount(0.4f); // Scrim 0.4 alpha
-        }
         return dialog;
     }
 
     private LinearLayout createSheetRoot(Dialog dialog) {
+        int screenWidth = getResources().getDisplayMetrics().widthPixels;
+
         LinearLayout sheet = new LinearLayout(this);
         sheet.setOrientation(LinearLayout.VERTICAL);
         sheet.setPadding(dp(16), dp(10), dp(16), dp(24));
+        sheet.setMinimumWidth(screenWidth);
+        sheet.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         GradientDrawable bg = new GradientDrawable();
         bg.setCornerRadii(new float[]{dp(24), dp(24), dp(24), dp(24), 0, 0, 0, 0});
@@ -920,10 +914,40 @@ public class MainActivity extends Activity {
         grabber.setBackground(grabberBg);
         LinearLayout.LayoutParams grabberLp = (LinearLayout.LayoutParams) grabber.getLayoutParams();
         grabberLp.gravity = Gravity.CENTER_HORIZONTAL;
-        grabberLp.bottomMargin = dp(12);
+        grabberLp.bottomMargin = dp(14);
         sheet.addView(grabber);
 
         return sheet;
+    }
+
+    private void showIosSheet(Dialog dialog, View sheet) {
+        showIosSheet(dialog, sheet, false);
+    }
+
+    private void showIosSheet(Dialog dialog, View sheet, boolean hasInput) {
+        FrameLayout root = new FrameLayout(this);
+        root.setLayoutParams(new ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+        root.setBackgroundColor(0x73000000); // Scrim 45% black
+        root.setOnClickListener(v -> dialog.dismiss()); // Click outside to dismiss
+
+        FrameLayout.LayoutParams sheetLp = new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        sheetLp.gravity = Gravity.BOTTOM;
+        sheet.setOnClickListener(v -> {}); // Prevent dismiss when clicking inside sheet
+        root.addView(sheet, sheetLp);
+
+        dialog.setContentView(root);
+
+        Window window = dialog.getWindow();
+        if (window != null) {
+            window.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+            window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
+            window.setGravity(Gravity.BOTTOM);
+            window.setWindowAnimations(android.R.style.Animation_InputMethod);
+            if (hasInput) {
+                window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE | WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+            }
+        }
+        dialog.show();
     }
 
     // Single File Action Sheet (4 Groups)
@@ -984,6 +1008,12 @@ public class MainActivity extends Activity {
         sep.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(1)));
         sheet.addView(sep);
 
+        // Scrollable container for action groups
+        ScrollView sv = new ScrollView(this);
+        sv.setVerticalScrollBarEnabled(false);
+        LinearLayout scrollContent = new LinearLayout(this);
+        scrollContent.setOrientation(LinearLayout.VERTICAL);
+
         // Group 1: Mở bằng…, Chia sẻ, Chi tiết
         LinearLayout group1 = createActionGroup();
         group1.addView(createActionRow(R.drawable.ic_open_with, "Mở bằng…", false, v -> {
@@ -998,7 +1028,7 @@ public class MainActivity extends Activity {
             dialog.dismiss();
             showFileDetailsSheet(f);
         }, false));
-        sheet.addView(group1);
+        scrollContent.addView(group1);
 
         // Group 2: Sao chép, Di chuyển, Đổi tên
         LinearLayout group2 = createActionGroup();
@@ -1014,7 +1044,7 @@ public class MainActivity extends Activity {
             dialog.dismiss();
             showRenameSheet(f);
         }, false));
-        sheet.addView(group2);
+        scrollContent.addView(group2);
 
         // Group 3: Nén thành ZIP, Giải nén (chỉ nếu archive), Tính SHA-256, Mã hóa vào Vault
         LinearLayout group3 = createActionGroup();
@@ -1043,7 +1073,7 @@ public class MainActivity extends Activity {
             dialog.dismiss();
             showEncryptToVaultSheet(f);
         }, false));
-        sheet.addView(group3);
+        scrollContent.addView(group3);
 
         // Group 4: Xóa (danger red, separated block)
         LinearLayout group4 = createActionGroup();
@@ -1051,10 +1081,12 @@ public class MainActivity extends Activity {
             dialog.dismiss();
             showDeleteConfirmSheet(f);
         }, false));
-        sheet.addView(group4);
+        scrollContent.addView(group4);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        sv.addView(scrollContent);
+        sheet.addView(sv);
+
+        showIosSheet(dialog, sheet);
     }
 
     private LinearLayout createActionGroup() {
@@ -1075,6 +1107,7 @@ public class MainActivity extends Activity {
     private View createActionRow(int iconResId, String title, boolean isDanger, View.OnClickListener listener, boolean hasDivider) {
         LinearLayout container = new LinearLayout(this);
         container.setOrientation(LinearLayout.VERTICAL);
+        container.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
@@ -1173,8 +1206,7 @@ public class MainActivity extends Activity {
         cancelCard.addView(btnCancel);
         sheet.addView(cancelCard);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet);
     }
 
     // Batch Delete Confirmation Sheet
@@ -1230,8 +1262,7 @@ public class MainActivity extends Activity {
         cancelCard.addView(btnCancel);
         sheet.addView(cancelCard);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet);
     }
 
     // Rename Sheet (iOS Input Sheet with duplicate name error)
@@ -1331,11 +1362,7 @@ public class MainActivity extends Activity {
         btnRow.addView(btnSave);
         sheet.addView(btnRow);
 
-        dialog.setContentView(sheet);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
-        }
-        dialog.show();
+        showIosSheet(dialog, sheet, true);
         input.requestFocus();
     }
 
@@ -1437,11 +1464,7 @@ public class MainActivity extends Activity {
         btnRow.addView(btnCreate);
         sheet.addView(btnRow);
 
-        dialog.setContentView(sheet);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
-        }
-        dialog.show();
+        showIosSheet(dialog, sheet, true);
         input.requestFocus();
     }
 
@@ -1479,8 +1502,7 @@ public class MainActivity extends Activity {
         btnClose.setOnClickListener(v -> dialog.dismiss());
         sheet.addView(btnClose);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet);
     }
 
     private void addDetailItem(LinearLayout container, String key, String val) {
@@ -1566,8 +1588,7 @@ public class MainActivity extends Activity {
         btnRow.addView(btnCopy);
         sheet.addView(btnRow);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet);
     }
 
     // Encrypt To Vault Sheet
@@ -1651,8 +1672,7 @@ public class MainActivity extends Activity {
         btnRow.addView(btnEnc);
         sheet.addView(btnRow);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet, true);
     }
 
     // Sort Action Sheet
@@ -1727,8 +1747,7 @@ public class MainActivity extends Activity {
         cancelCard.addView(btnCancel);
         sheet.addView(cancelCard);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet);
     }
 
     // Search Sheet
@@ -1792,11 +1811,7 @@ public class MainActivity extends Activity {
         btnRow.addView(btnSearch);
         sheet.addView(btnRow);
 
-        dialog.setContentView(sheet);
-        if (dialog.getWindow() != null) {
-            dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
-        }
-        dialog.show();
+        showIosSheet(dialog, sheet, true);
         input.requestFocus();
     }
 
@@ -1875,8 +1890,7 @@ public class MainActivity extends Activity {
         }, false));
         sheet.addView(group2);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet);
     }
 
     // Batch Actions Sheet (when multi-selecting)
@@ -1906,8 +1920,7 @@ public class MainActivity extends Activity {
         }, false));
         sheet.addView(group2);
 
-        dialog.setContentView(sheet);
-        dialog.show();
+        showIosSheet(dialog, sheet);
     }
 
     // ==========================================
