@@ -21,9 +21,14 @@ public final class FileRepository {
 
     public static List<File> listFiles(File dir, boolean showHidden, int sortField, boolean sortAsc) {
         if (dir == null || !dir.exists()) return Collections.emptyList();
-        File[] filesArr = dir.listFiles();
-        if ((filesArr == null || filesArr.length == 0) && WirelessDebugManager.isAndroidDataPath(dir)) {
+        File[] filesArr;
+        if (WirelessDebugManager.isAndroidDataPath(dir)) {
             filesArr = WirelessDebugManager.listAndroidDataArray(dir);
+            if (filesArr == null || filesArr.length == 0) {
+                filesArr = dir.listFiles();
+            }
+        } else {
+            filesArr = dir.listFiles();
         }
         if (filesArr == null || filesArr.length == 0) return Collections.emptyList();
 
@@ -162,7 +167,12 @@ public final class FileRepository {
 
     private static void searchRecursive(File current, String query, List<File> results, int maxResults) {
         if (results.size() >= maxResults) return;
-        File[] list = current.listFiles();
+        File[] list;
+        if (WirelessDebugManager.isAndroidDataPath(current)) {
+            list = WirelessDebugManager.listAndroidDataArray(current);
+        } else {
+            list = current.listFiles();
+        }
         if (list == null) return;
 
         for (File f : list) {
@@ -171,7 +181,7 @@ public final class FileRepository {
             if (normalizedName.contains(query)) {
                 results.add(f);
             }
-            if (f.isDirectory()) {
+            if (f.isDirectory() && !WirelessDebugManager.isAndroidDataPath(f)) {
                 searchRecursive(f, query, results, maxResults);
             }
         }

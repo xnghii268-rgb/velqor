@@ -139,12 +139,16 @@ public class FileRowView extends LinearLayout {
         TextView subText = new TextView(ctx);
         String subtitle;
         if (f.isDirectory()) {
-            int childCount = 0;
-            try {
-                String[] list = f.list();
-                if (list != null) childCount = list.length;
-            } catch (Exception ignored) {}
-            subtitle = childCount + " mục · " + formatItemDate(f.lastModified());
+            if (f instanceof com.velqor.app.files.WirelessDebugManager.ShizukuFile) {
+                subtitle = "Thư mục gói";
+            } else {
+                int childCount = 0;
+                try {
+                    String[] list = f.list();
+                    if (list != null) childCount = list.length;
+                } catch (Exception ignored) {}
+                subtitle = childCount + " mục · " + formatItemDate(f.lastModified());
+            }
         } else {
             subtitle = formatSize(f.length()) + " · " + formatItemDate(f.lastModified());
         }
@@ -265,12 +269,16 @@ public class FileRowView extends LinearLayout {
         TextView subText = new TextView(ctx);
         String subtitle;
         if (f.isDirectory()) {
-            int childCount = 0;
-            try {
-                String[] list = f.list();
-                if (list != null) childCount = list.length;
-            } catch (Exception ignored) {}
-            subtitle = childCount + " mục";
+            if (f instanceof com.velqor.app.files.WirelessDebugManager.ShizukuFile) {
+                subtitle = "Thư mục gói";
+            } else {
+                int childCount = 0;
+                try {
+                    String[] list = f.list();
+                    if (list != null) childCount = list.length;
+                } catch (Exception ignored) {}
+                subtitle = childCount + " mục";
+            }
         } else {
             subtitle = formatSize(f.length());
         }

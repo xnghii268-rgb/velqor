@@ -42,17 +42,27 @@ public final class WirelessDebugManager {
 
         @Override
         public boolean isDirectory() {
-            return mIsDir || super.isDirectory();
+            return mIsDir;
         }
 
         @Override
         public boolean isFile() {
-            return !mIsDir || super.isFile();
+            return !mIsDir;
         }
 
         @Override
         public boolean exists() {
             return true;
+        }
+
+        @Override
+        public String[] list() {
+            return null;
+        }
+
+        @Override
+        public File[] listFiles() {
+            return listAndroidDataArray(this);
         }
     }
 
@@ -270,44 +280,41 @@ public final class WirelessDebugManager {
         return path.contains("/Android/data") || path.contains("/Android/obb");
     }
 
+    private static Method sNewProcessMethod;
+
+    private static synchronized Method getNewProcessMethod() {
+        if (sNewProcessMethod == null) {
+            try {
+                sNewProcessMethod = Shizuku.class.getDeclaredMethod("newProcess", String[].class, String[].class, String.class);
+                sNewProcessMethod.setAccessible(true);
+            } catch (Throwable ignored) {}
+        }
+        return sNewProcessMethod;
+    }
+
     public static File[] listAndroidDataArray(File dir) {
         if (dir == null) return new File[0];
         List<File> list = new ArrayList<>();
         if (isShizukuRunning() && isShizukuPermissionGranted()) {
             try {
-                Method newProcessMethod = Shizuku.class.getDeclaredMethod("newProcess", String[].class, String[].class, String.class);
-                newProcessMethod.setAccessible(true);
-                String[] cmd = new String[]{"sh", "-c", "ls -1pA \"" + dir.getAbsolutePath() + "\" 2>/dev/null"};
-                Process process = (Process) newProcessMethod.invoke(null, cmd, null, null);
-                if (process != null) {
-                    BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        line = line.trim();
-                        if (line.isEmpty()) continue;
-                        boolean isDir = line.endsWith("/");
-                        String name = isDir ? line.substring(0, line.length() - 1) : line;
-                        list.add(new ShizukuFile(dir, name, isDir));
+                Method newProcessMethod = getNewProcessMethod();
+                if (newProcessMethod != null) {
+                    String[] cmd = new String[]{"/system/bin/sh", "-c", "ls -1pA \"" + dir.getAbsolutePath() + "\" 2>/dev/null"};
+                    Process process = (Process) newProcessMethod.invoke(null, cmd, null, null);
+                    if (process != null) {
+                        BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            line = line.trim();
+                            if (line.isEmpty()) continue;
+                            boolean isDir = line.endsWith("/");
+                            String name = isDir ? line.substring(0, line.length() - 1) : line;
+                            list.add(new ShizukuFile(dir, name, isDir));
+                        }
+                        reader.close();
+                        process.waitFor();
                     }
-                    reader.close();
-                    process.waitFor();
                 }
-            } catch (Throwable ignored) {}
-        }
-        if (list.isEmpty()) {
-            try {
-                Process process = Runtime.getRuntime().exec(new String[]{"sh", "-c", "ls -1pA \"" + dir.getAbsolutePath() + "\" 2>/dev/null"});
-                BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    line = line.trim();
-                    if (line.isEmpty()) continue;
-                    boolean isDir = line.endsWith("/");
-                    String name = isDir ? line.substring(0, line.length() - 1) : line;
-                    list.add(new ShizukuFile(dir, name, isDir));
-                }
-                reader.close();
-                process.waitFor();
             } catch (Throwable ignored) {}
         }
         return list.toArray(new File[0]);

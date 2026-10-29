@@ -530,19 +530,30 @@ public class MainActivity extends Activity {
     private void refreshDirectory() {
         mIsSearchActive = false;
         mHeaderView.updateBreadcrumbs(mCurrentDir);
-        List<File> files = FileRepository.listFiles(mCurrentDir, mShowHidden, mSortField, mSortAsc);
-        populateFileList(files);
-        if (mScrollView != null) {
-            mScrollView.finishRefresh();
-        }
-        if (mDirectoryWatcher != null) {
-            mDirectoryWatcher.watchDirectory(mCurrentDir, mShowHidden, mSortField, mSortAsc);
-        }
+        final File targetDir = mCurrentDir;
+        new Thread(() -> {
+            List<File> files = FileRepository.listFiles(targetDir, mShowHidden, mSortField, mSortAsc);
+            runOnUiThread(() -> {
+                if (targetDir.equals(mCurrentDir)) {
+                    populateFileList(files);
+                    if (mScrollView != null) {
+                        mScrollView.finishRefresh();
+                    }
+                    if (mDirectoryWatcher != null) {
+                        mDirectoryWatcher.watchDirectory(mCurrentDir, mShowHidden, mSortField, mSortAsc);
+                    }
+                }
+            });
+        }).start();
     }
 
     private void populateFileList(List<File> files) {
         mFileListGroup.removeAllViews();
         if (files == null || files.isEmpty()) {
+            if (WirelessDebugManager.isAndroidDataPath(mCurrentDir) && !WirelessDebugManager.isShizukuPermissionGranted()) {
+                showShizukuPromptState();
+                return;
+            }
             showEmptyState("Thư mục rỗng", "Không có tệp hoặc thư mục nào ở đây.");
             return;
         }
@@ -625,6 +636,67 @@ public class MainActivity extends Activity {
                 mFileListGroup.addView(row);
             }
         }
+    }
+
+    private void showShizukuPromptState() {
+        mFileListGroup.setBackground(null);
+        LinearLayout emptyLayout = new LinearLayout(this);
+        emptyLayout.setOrientation(LinearLayout.VERTICAL);
+        emptyLayout.setGravity(Gravity.CENTER);
+        emptyLayout.setPadding(ThemeTokens.dp(this, 32), ThemeTokens.dp(this, 64),
+                ThemeTokens.dp(this, 32), ThemeTokens.dp(this, 32));
+
+        ImageView icon = new ImageView(this);
+        icon.setImageResource(R.drawable.ic_wifi);
+        icon.setColorFilter(ThemeTokens.getAccentColor(this));
+        icon.setLayoutParams(new LinearLayout.LayoutParams(ThemeTokens.dp(this, 60), ThemeTokens.dp(this, 60)));
+        emptyLayout.addView(icon);
+
+        TextView titleView = new TextView(this);
+        titleView.setText("Cần cấp quyền Shizuku");
+        titleView.setTextColor(ThemeTokens.getLabelColor(this));
+        titleView.setTextSize(18);
+        titleView.setTypeface(Typeface.DEFAULT_BOLD);
+        titleView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams tlp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        tlp.topMargin = ThemeTokens.dp(this, 16);
+        titleView.setLayoutParams(tlp);
+        emptyLayout.addView(titleView);
+
+        TextView subView = new TextView(this);
+        subView.setText("Thư mục /Android/data được bảo vệ bởi hệ thống. Mở Quản lí ứng dụng Shizuku và gạt bật công tắc cho VELQOR để mở khóa toàn bộ tệp.");
+        subView.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        subView.setTextSize(14);
+        subView.setGravity(Gravity.CENTER);
+        LinearLayout.LayoutParams slp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        slp.topMargin = ThemeTokens.dp(this, 8);
+        subView.setLayoutParams(slp);
+        emptyLayout.addView(subView);
+
+        TextView btnAuth = new TextView(this);
+        btnAuth.setText("Mở Quản lí ứng dụng Shizuku");
+        btnAuth.setTextColor(Color.WHITE);
+        btnAuth.setTextSize(15);
+        btnAuth.setTypeface(Typeface.DEFAULT_BOLD);
+        btnAuth.setGravity(Gravity.CENTER);
+        btnAuth.setPadding(ThemeTokens.dp(this, 22), ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 22), ThemeTokens.dp(this, 12));
+
+        GradientDrawable btnBg = new GradientDrawable();
+        btnBg.setCornerRadius(ThemeTokens.dp(this, 999));
+        btnBg.setColor(ThemeTokens.getAccentColor(this));
+        btnAuth.setBackground(btnBg);
+
+        btnAuth.setOnClickListener(v -> {
+            if (!WirelessDebugManager.openShizukuManageApps(this)) {
+                showWirelessDebugSheet();
+            }
+        });
+
+        LinearLayout.LayoutParams blp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        blp.topMargin = ThemeTokens.dp(this, 20);
+        emptyLayout.addView(btnAuth, blp);
+
+        mFileListGroup.addView(emptyLayout);
     }
 
     private void showEmptyState(String title, String subtitle) {
@@ -1154,76 +1226,82 @@ public class MainActivity extends Activity {
     private void performSearch(String query, String filterType) {
         mIsSearchActive = true;
         mFileListGroup.removeAllViews();
-        List<File> matched = FileRepository.search(mCurrentDir, query, 150);
+        final File searchDir = mCurrentDir;
+        new Thread(() -> {
+            List<File> matched = FileRepository.search(searchDir, query, 150);
 
-        List<File> filtered = new ArrayList<>();
-        for (File f : matched) {
-            String name = f.getName().toLowerCase();
-            if ("Tất cả".equals(filterType)) {
-                filtered.add(f);
-            } else if ("Ảnh".equals(filterType)) {
-                if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") ||
-                    name.endsWith(".webp") || name.endsWith(".gif") || name.endsWith(".bmp")) {
+            List<File> filtered = new ArrayList<>();
+            for (File f : matched) {
+                String name = f.getName().toLowerCase();
+                if ("Tất cả".equals(filterType)) {
                     filtered.add(f);
-                }
-            } else if ("Video".equals(filterType)) {
-                if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov")) {
-                    filtered.add(f);
-                }
-            } else if ("Tài liệu".equals(filterType)) {
-                if (name.endsWith(".pdf") || name.endsWith(".txt") || name.endsWith(".doc") ||
-                    name.endsWith(".docx") || name.endsWith(".md") || name.endsWith(".json")) {
-                    filtered.add(f);
-                }
-            } else if ("Kho nén".equals(filterType)) {
-                if (ZipManager.isArchive(f)) {
-                    filtered.add(f);
-                }
-            } else if ("Lớn >10MB".equals(filterType)) {
-                if (f.length() >= 10L * 1024 * 1024) {
-                    filtered.add(f);
-                }
-            }
-        }
-
-        if (filtered.isEmpty()) {
-            showEmptyState("Không tìm thấy kết quả", "Không có tệp nào khớp với từ khóa \"" + query + "\" [" + filterType + "].");
-            return;
-        }
-
-        GradientDrawable groupBg = new GradientDrawable();
-        groupBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_GROUP_LIST));
-        groupBg.setColor(ThemeTokens.getActionGroupBgColor(this));
-        groupBg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
-        mFileListGroup.setBackground(groupBg);
-
-        for (int i = 0; i < filtered.size(); i++) {
-            File f = filtered.get(i);
-            boolean isLast = (i == filtered.size() - 1);
-            View row = FileRowView.createRow(this, f, isLast, false, false, new FileRowView.OnFileRowClickListener() {
-                @Override
-                public void onClick(File clickedFile) {
-                    if (clickedFile.isDirectory()) {
-                        mCurrentDir = clickedFile;
-                        refreshDirectory();
-                    } else if (ImageViewerActivity.isImageFile(clickedFile)) {
-                        openImageViewer(clickedFile);
-                    } else if (TextFileIO.isTextFile(clickedFile)) {
-                        openTextEditor(clickedFile);
-                    } else if (isApkFile(clickedFile)) {
-                        installApk(clickedFile);
-                    } else {
-                        showFileActionSheet(clickedFile);
+                } else if ("Ảnh".equals(filterType)) {
+                    if (name.endsWith(".jpg") || name.endsWith(".jpeg") || name.endsWith(".png") ||
+                        name.endsWith(".webp") || name.endsWith(".gif") || name.endsWith(".bmp")) {
+                        filtered.add(f);
+                    }
+                } else if ("Video".equals(filterType)) {
+                    if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov")) {
+                        filtered.add(f);
+                    }
+                } else if ("Tài liệu".equals(filterType)) {
+                    if (name.endsWith(".pdf") || name.endsWith(".txt") || name.endsWith(".doc") ||
+                        name.endsWith(".docx") || name.endsWith(".md") || name.endsWith(".json")) {
+                        filtered.add(f);
+                    }
+                } else if ("Kho nén".equals(filterType)) {
+                    if (ZipManager.isArchive(f)) {
+                        filtered.add(f);
+                    }
+                } else if ("Lớn >10MB".equals(filterType)) {
+                    if (f.length() >= 10L * 1024 * 1024) {
+                        filtered.add(f);
                     }
                 }
+            }
 
-                @Override
-                public void onLongClick(File clickedFile) {
-                    showFileActionSheet(clickedFile);
+            runOnUiThread(() -> {
+                if (!mIsSearchActive || !searchDir.equals(mCurrentDir)) return;
+                if (filtered.isEmpty()) {
+                    showEmptyState("Không tìm thấy kết quả", "Không có tệp nào khớp với từ khóa \"" + query + "\" [" + filterType + "].");
+                    return;
+                }
+
+                GradientDrawable groupBg = new GradientDrawable();
+                groupBg.setCornerRadius(ThemeTokens.dp(this, ThemeTokens.RADIUS_GROUP_LIST));
+                groupBg.setColor(ThemeTokens.getActionGroupBgColor(this));
+                groupBg.setStroke(ThemeTokens.dp(this, 1), ThemeTokens.getStrokeColor(this));
+                mFileListGroup.setBackground(groupBg);
+
+                for (int i = 0; i < filtered.size(); i++) {
+                    File f = filtered.get(i);
+                    boolean isLast = (i == filtered.size() - 1);
+                    View row = FileRowView.createRow(this, f, isLast, false, false, new FileRowView.OnFileRowClickListener() {
+                        @Override
+                        public void onClick(File clickedFile) {
+                            if (clickedFile.isDirectory()) {
+                                mCurrentDir = clickedFile;
+                                refreshDirectory();
+                            } else if (ImageViewerActivity.isImageFile(clickedFile)) {
+                                openImageViewer(clickedFile);
+                            } else if (TextFileIO.isTextFile(clickedFile)) {
+                                openTextEditor(clickedFile);
+                            } else if (isApkFile(clickedFile)) {
+                                installApk(clickedFile);
+                            } else {
+                                showFileActionSheet(clickedFile);
+                            }
+                        }
+
+                        @Override
+                        public void onLongClick(File clickedFile) {
+                            showFileActionSheet(clickedFile);
+                        }
+                    });
+                    mFileListGroup.addView(row);
                 }
             });
-            mFileListGroup.addView(row);
-        }
+        }).start();
     }
 
     private void showMoreOptionsSheet() {
