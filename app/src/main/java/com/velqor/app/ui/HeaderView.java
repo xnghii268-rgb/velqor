@@ -37,6 +37,7 @@ public class HeaderView extends LinearLayout {
     private LinearLayout mShortcutsContainer;
     private View mBtnNewItem;
     private ImageView mBtnViewModeIcon;
+    private View mDivider;
     private boolean mIsGridMode = false;
     private OnHeaderActionListener mListener;
 
@@ -125,11 +126,11 @@ public class HeaderView extends LinearLayout {
         mShortcutsScroll.addView(mShortcutsContainer);
         addView(mShortcutsScroll);
 
-        View divider = new View(getContext());
-        divider.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+        mDivider = new View(getContext());
+        mDivider.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
         int divH = Math.max(1, ThemeTokens.dp(getContext(), 1) / 2);
-        divider.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, divH));
-        addView(divider);
+        mDivider.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, divH));
+        addView(mDivider);
     }
 
     private void buildShortcuts() {
@@ -168,6 +169,19 @@ public class HeaderView extends LinearLayout {
         });
 
         mShortcutsContainer.addView(chip);
+    }
+
+    public void setTitle(String title) {
+        if (mLargeTitleText != null) {
+            mLargeTitleText.setText(title);
+        }
+    }
+
+    public void setPathVisibility(boolean visible) {
+        int v = visible ? View.VISIBLE : View.GONE;
+        if (mBreadcrumbScroll != null) mBreadcrumbScroll.setVisibility(v);
+        if (mShortcutsScroll != null) mShortcutsScroll.setVisibility(v);
+        if (mDivider != null) mDivider.setVisibility(v);
     }
 
     public void setViewMode(boolean isGrid) {

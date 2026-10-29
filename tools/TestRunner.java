@@ -51,6 +51,7 @@ public class TestRunner {
         testFileCreatorOperations();
         testFolderInfoCalculation();
         testZipInspection();
+        testDirectoryWatcherDiff();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -494,6 +495,33 @@ public class TestRunner {
         assertTrue("Single entry extracted", extracted);
         assertTrue("Extracted file exists", extractedDoc.exists());
         assertEquals("Extracted file size", f1.length(), extractedDoc.length());
+
+        FileRepository.deleteRecursive(tempDir);
+    }
+
+    private static void testDirectoryWatcherDiff() throws Exception {
+        System.out.println("[14/14] Testing Directory Watcher Diff & Snapshot Detection...");
+        File tempDir = new File(System.getProperty("java.io.tmpdir"), "watcher_diff_test_" + System.currentTimeMillis());
+        tempDir.mkdirs();
+        File f1 = new File(tempDir, "file1.txt");
+        try (FileOutputStream fos = new FileOutputStream(f1)) {
+            fos.write("Hello".getBytes(StandardCharsets.UTF_8));
+        }
+
+        List<File> initialFiles = Collections.singletonList(f1);
+        Map<String, com.velqor.app.files.DirectoryWatcher.FileSnapshot> snapshot = new HashMap<>();
+        snapshot.put(f1.getAbsolutePath(), new com.velqor.app.files.DirectoryWatcher.FileSnapshot(f1));
+
+        boolean unchanged = !com.velqor.app.files.DirectoryWatcher.hasDirectoryChanged(initialFiles, snapshot);
+        assertTrue("Directory unchanged when identical", unchanged);
+
+        File f2 = new File(tempDir, "file2.txt");
+        try (FileOutputStream fos = new FileOutputStream(f2)) {
+            fos.write("World".getBytes(StandardCharsets.UTF_8));
+        }
+        List<File> addedFiles = Arrays.asList(f1, f2);
+        boolean changedAdd = com.velqor.app.files.DirectoryWatcher.hasDirectoryChanged(addedFiles, snapshot);
+        assertTrue("Directory changed on file add", changedAdd);
 
         FileRepository.deleteRecursive(tempDir);
     }
