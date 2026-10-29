@@ -86,6 +86,7 @@ class MainActivity : ComponentActivity() {
                         BrowserViewModel(
                             fileManager = container.fileManager,
                             taskManager = container.taskManager,
+                            archiveEngine = container.archiveEngine,
                             initialPath = Environment.getExternalStorageDirectory().absolutePath
                         )
                     }

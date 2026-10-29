@@ -26,12 +26,14 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Archive
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ContentCut
 import androidx.compose.material.icons.filled.ContentPaste
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Folder
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.RadioButtonUnchecked
 import androidx.compose.material.icons.filled.Search
@@ -92,6 +94,8 @@ fun BrowserScreen(
     var showNewFolderDialog by remember { mutableStateOf(false) }
     var newFolderName by remember { mutableStateOf("") }
     var showSortDialog by remember { mutableStateOf(false) }
+    var showArchiveDialog by remember { mutableStateOf(false) }
+    var detailFileItem by remember { mutableStateOf<FileItem?>(null) }
 
     // Intercept back button to navigate parent folder
     BackHandler(enabled = state.currentPath != "/" && state.currentPath != "/sdcard") {
@@ -213,6 +217,17 @@ fun BrowserScreen(
                         )
 
                         Row {
+                            if (state.selectedPaths.size == 1) {
+                                IconButton(onClick = {
+                                    val sel = state.selectedPaths.first()
+                                    detailFileItem = state.items.firstOrNull { it.path == sel }
+                                }) {
+                                    Icon(Icons.Default.Info, "Chi tiết", tint = colors.textPrimary)
+                                }
+                            }
+                            IconButton(onClick = { showArchiveDialog = true }) {
+                                Icon(Icons.Default.Archive, "Nén", tint = colors.accent)
+                            }
                             IconButton(onClick = { viewModel.copySelected() }) {
                                 Icon(Icons.Default.ContentCopy, "Chép", tint = colors.textPrimary)
                             }
@@ -349,6 +364,33 @@ fun BrowserScreen(
                     Text("Đóng")
                 }
             }
+        )
+    }
+
+    // Dialog: Tạo tệp nén
+    if (showArchiveDialog) {
+        val defaultName = if (state.selectedPaths.size == 1) {
+            File(state.selectedPaths.first()).nameWithoutExtension
+        } else {
+            "archive_${System.currentTimeMillis()}"
+        }
+
+        CreateArchiveDialog(
+            selectedFilesCount = state.selectedPaths.size,
+            defaultName = defaultName,
+            onDismiss = { showArchiveDialog = false },
+            onConfirm = { name, format, level, password ->
+                viewModel.compressSelected(name, level, password)
+                showArchiveDialog = false
+            }
+        )
+    }
+
+    // Dialog: Chi tiết tệp tin
+    if (detailFileItem != null) {
+        FileDetailsDialog(
+            item = detailFileItem!!,
+            onDismiss = { detailFileItem = null }
         )
     }
 }

@@ -126,7 +126,7 @@ fun SettingsScreen() {
                     Column {
                         Text("VELQOR", fontSize = 16.sp, fontWeight = FontWeight.SemiBold, color = colors.textPrimary)
                         Spacer(modifier = Modifier.height(2.dp))
-                        Text("Phiên bản 1.0.0 (Build 1) • Chuẩn Apple Minimalist", fontSize = 12.sp, color = colors.textSecondary)
+                        Text("Phiên bản 2.0.0 (Build 2) • Chuẩn Apple Minimalist Pro", fontSize = 12.sp, color = colors.textSecondary)
                     }
                 }
             }

@@ -2,6 +2,7 @@ package com.velqor.feature.browser
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.velqor.core.archive.engine.ArchiveEngine
 import com.velqor.core.filesystem.manager.FileManager
 import com.velqor.core.filesystem.model.FileItem
 import com.velqor.core.filesystem.model.FileSortOption
@@ -31,6 +32,7 @@ data class BrowserUiState(
 class BrowserViewModel(
     private val fileManager: FileManager,
     private val taskManager: TaskManager,
+    private val archiveEngine: ArchiveEngine,
     initialPath: String = "/sdcard"
 ) : ViewModel() {
 
@@ -166,5 +168,30 @@ class BrowserViewModel(
             loadDirectory(dest)
         }
         _uiState.update { it.copy(clipboardPaths = emptyList()) }
+    }
+
+    fun compressSelected(
+        outputName: String,
+        compressionLevel: Int,
+        password: String?
+    ) {
+        val sources = _uiState.value.selectedPaths.toList()
+        if (sources.isEmpty()) return
+
+        val destDir = _uiState.value.currentPath
+        val targetArchive = File(destDir, outputName).absolutePath
+
+        taskManager.enqueueTask("Nén ${sources.size} mục thành $outputName", TaskType.COMPRESS) { updateProgress, _ ->
+            archiveEngine.createArchive(
+                archivePath = targetArchive,
+                sourcePaths = sources,
+                password = password,
+                compressionLevel = compressionLevel
+            ) { p ->
+                updateProgress(p.currentEntry, p.percent, p.bytesProcessed, p.totalBytes)
+            }
+            loadDirectory(destDir)
+        }
+        clearSelection()
     }
 }

@@ -4,6 +4,7 @@ import com.velqor.core.archive.model.ArchiveEntry
 import com.velqor.core.archive.model.ArchiveProgress
 import com.velqor.core.archive.rar.RarArchiveEngine
 import com.velqor.core.archive.sevenz.SevenZipArchiveEngine
+import com.velqor.core.archive.tar.TarArchiveEngine
 import com.velqor.core.archive.zip.ZipArchiveEngine
 import com.velqor.core.common.dispatcher.DispatcherProvider
 import com.velqor.core.common.result.AppError
@@ -16,7 +17,8 @@ class CompositeArchiveEngine(
     private val engines = listOf(
         ZipArchiveEngine(dispatchers),
         SevenZipArchiveEngine(dispatchers),
-        RarArchiveEngine(dispatchers)
+        RarArchiveEngine(dispatchers),
+        TarArchiveEngine(dispatchers)
     )
 
     private fun findEngine(archivePath: String): ArchiveEngine? {

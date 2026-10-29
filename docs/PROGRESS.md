@@ -1,27 +1,19 @@
-# VELQOR — TIẾN ĐỘ PHÁT TRIỂN
+# VELQOR — TIẾN ĐỘ PHÁT TRIỂN (v2.0.0)
 
 ## Trạng thái hiện tại
-- **Đang thực hiện**: M0 + M1 + M2 + M3 + M4 + M5 + M6 — Core Architecture & Feature Suites Completed
-- **Thư mục dự án**: `/sdcard/AntiGravity/velqor` (đã chuyển 100% vào AntiGravity)
-- **Repo GitHub**: `https://github.com/xnghii268-rgb/velqor` (Commit `404b2d4`)
-- **App Icon**: Đã tích hợp icon 500x500 RGBA từ `/sdcard/AntiGravity/49374-removebg-preview.png` vào đầy đủ các mật độ màn hình `mipmap` (`hdpi` đến `xxxhdpi`).
+- **Phiên bản**: **v2.0.0 (versionCode 2)** — VELQOR PRO
+- **Thư mục dự án**: `/sdcard/AntiGravity/velqor` (định vị 100% trong AntiGravity)
+- **Repo GitHub**: `https://github.com/xnghii268-rgb/velqor`
+- **Phong cách UI**: Apple-grade Minimalist Pro (Cupertino, Frosted Glass, OLED Black)
 
-## Tiến độ Milestone
-- [x] Phase 0: Khảo sát môi trường, multi-module Gradle catalog, thiết lập repo.
-- [x] M0: Skeleton & Architecture (AppContainer, Theme tokens, Navigation, MainActivity).
-- [x] M1: File Browser MVP (Duyệt thư mục, sắp xếp, tìm kiếm tiếng Việt không dấu, CRUD, clipboard).
-- [x] M2: Task Engine (TaskManager, hàng đợi tác vụ nền, Foreground Service, Flow tiến trình, hủy).
-- [x] M3: ZIP Engine (Zip4j + Anti-ZipSlip defense, nén/giải nén, mật khẩu AES-256).
-- [x] M4: 7z & RAR Engine (Commons-Compress 7z + Junrar trích xuất, báo lỗi rõ ràng).
-- [x] M5: SHA-256 Streaming Hasher + Monospace Text Editor (Atomic save, đánh số dòng).
-- [x] M6: Security Vault (AES-256-GCM chunked stream, sequence AAD, chống giả mạo).
-- [x] M7: Kiểm thử kiến trúc JVM & Tích hợp (16/16 tests passed 100%).
-
-## Quyết định kiến trúc
-- **DI**: AppContainer + Service Locator thuần Kotlin (0 annotation processor, siêu tốc, an toàn).
-- **Crypto**: AES-256-GCM chunked streaming (12-byte IV + sequence counter + 128-bit tag).
-- **Zip Slip Defense**: Chuẩn hóa canonical path, chặn đứng mọi tấn công path traversal `../`.
+## Nâng cấp v2.0.0 (VELQOR Pro Features)
+- [x] **Phiên bản v2**: Bump `versionCode = 2`, `versionName = "2.0.0"`.
+- [x] **TAR/GZ/BZ2/XZ Engine**: Hỗ trợ đầy đủ định dạng Linux/Unix archives (`.tar`, `.tar.gz`, `.tgz`, `.tar.bz2`, `.tar.xz`).
+- [x] **Interactive Create Archive Dialog**: Tùy chọn tên tệp, định dạng (ZIP, TAR, TAR.GZ), thanh trượt mức độ nén (0-9), mật khẩu AES-256.
+- [x] **File Details & Hash Inspector**: Hiển thị metadata đầy đủ và tính toán mã băm SHA-256 theo luồng, 1-tap Copy.
+- [x] **Anti-Zip Slip Shield**: Bảo vệ toàn diện chống path traversal trên toàn bộ các engine (ZIP, 7Z, RAR, TAR).
+- [x] **Kiểm thử kiến trúc**: Chạy `bash tools/test_runner.sh` đạt **19/19 bài test (100% pass)**.
 
 ## Lệnh kiểm chứng
-- JVM Test: `bash /sdcard/AntiGravity/velqor/tools/test_runner.sh` (16/16 tests passed).
-- Git Remote: `git status && git log -1`
+- JVM Test: `bash /sdcard/AntiGravity/velqor/tools/test_runner.sh` (19/19 tests passed).
+- Git status: `git status`

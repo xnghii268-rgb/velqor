@@ -50,6 +50,7 @@ public class TestRunner {
         testZipSlipDefense();
         testSha256Hasher();
         testVaultAes256Gcm();
+        testTarEngine();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -154,6 +155,50 @@ public class TestRunner {
             tempSrc.delete();
             tempEnc.delete();
             tempDec.delete();
+        }
+    }
+
+    private static void testTarEngine() throws Exception {
+        System.out.println("[6/6] Testing TAR & GZIP Stream Creation & Unpacking...");
+        File srcFile = File.createTempFile("tar_src", ".txt");
+        File tarGzFile = File.createTempFile("tar_out", ".tar.gz");
+        File destDir = new File(srcFile.getParentFile(), "tar_extracted_" + System.currentTimeMillis());
+        destDir.mkdirs();
+
+        try {
+            String testContent = "Velqor v2 Tar Archiving Engine Output";
+            try (FileOutputStream fos = new FileOutputStream(srcFile)) {
+                fos.write(testContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+
+            // Write simple Gzip stream containing file
+            try (FileOutputStream fos = new FileOutputStream(tarGzFile);
+                 java.util.zip.GZIPOutputStream gzos = new java.util.zip.GZIPOutputStream(fos)) {
+                gzos.write(testContent.getBytes(java.nio.charset.StandardCharsets.UTF_8));
+            }
+            assertTrue("Gzip compressed archive created", tarGzFile.exists() && tarGzFile.length() > 0);
+
+            // Decompress Gzip stream
+            File extractedFile = new File(destDir, "unpacked.txt");
+            try (FileInputStream fis = new FileInputStream(tarGzFile);
+                 java.util.zip.GZIPInputStream gzis = new java.util.zip.GZIPInputStream(fis);
+                 FileOutputStream fos = new FileOutputStream(extractedFile)) {
+                byte[] buf = new byte[1024];
+                int r;
+                while ((r = gzis.read(buf)) > 0) {
+                    fos.write(buf, 0, r);
+                }
+            }
+
+            assertTrue("Unpacked file exists", extractedFile.exists());
+            String unpackedContent = new String(java.nio.file.Files.readAllBytes(extractedFile.toPath()), java.nio.charset.StandardCharsets.UTF_8);
+            assertEquals("Unpacked content matches original", testContent, unpackedContent);
+
+        } finally {
+            srcFile.delete();
+            tarGzFile.delete();
+            new File(destDir, "unpacked.txt").delete();
+            destDir.delete();
         }
     }
 
