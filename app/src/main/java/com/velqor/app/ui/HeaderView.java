@@ -32,6 +32,7 @@ public class HeaderView extends LinearLayout {
     private TextView mLargeTitleText;
     private HorizontalScrollView mBreadcrumbScroll;
     private LinearLayout mBreadcrumbContainer;
+    private View mBtnNewItem;
     private OnHeaderActionListener mListener;
 
     public HeaderView(Context context, int statusBarHeight) {
@@ -64,9 +65,10 @@ public class HeaderView extends LinearLayout {
         });
         header.addView(btnSearch);
 
-        View btnNewFolder = createRoundButton(R.drawable.ic_folder_plus, v -> {
+        View btnNewFolder = createRoundButton(R.drawable.ic_plus, v -> {
             if (mListener != null) mListener.onNewFolderClick();
         });
+        mBtnNewItem = btnNewFolder;
         LinearLayout.LayoutParams newFolderLp = new LinearLayout.LayoutParams(
                 ThemeTokens.dp(getContext(), ThemeTokens.SIZE_HEADER_BTN),
                 ThemeTokens.dp(getContext(), ThemeTokens.SIZE_HEADER_BTN));
@@ -108,6 +110,12 @@ public class HeaderView extends LinearLayout {
 
     public void setOnHeaderActionListener(OnHeaderActionListener listener) {
         mListener = listener;
+    }
+
+    public void setNewItemButtonVisibility(boolean visible) {
+        if (mBtnNewItem != null) {
+            mBtnNewItem.setVisibility(visible ? View.VISIBLE : View.GONE);
+        }
     }
 
     public void setScrolledState(boolean isScrolled) {

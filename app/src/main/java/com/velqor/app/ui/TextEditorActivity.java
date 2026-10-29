@@ -1,19 +1,23 @@
 package com.velqor.app.ui;
 
 import android.app.Activity;
+import android.app.Dialog;
 import android.content.Context;
+import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.text.Editable;
 import android.text.InputType;
+import android.text.Layout;
 import android.text.TextWatcher;
+import android.util.TypedValue;
 import android.view.Gravity;
 import android.view.KeyEvent;
-import android.view.MotionEvent;
 import android.view.ScaleGestureDetector;
 import android.view.View;
 import android.view.ViewGroup;
@@ -29,12 +33,15 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.velqor.app.R;
+import com.velqor.app.VelqorFileProvider;
 import com.velqor.app.files.TextFileIO;
 import com.velqor.app.tokens.ThemeTokens;
 
 import java.io.File;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
@@ -54,16 +61,32 @@ public class TextEditorActivity extends Activity {
     private float mFontSizeSp = 14f;
     private boolean mIsWrapEnabled = true;
 
-    private EditText mEditor;
-    private TextView mLineNumbers;
+    // Search Options
+    private boolean mMatchCase = false;
+    private boolean mUseRegex = false;
+    private boolean mIsReplaceExpanded = false;
+    private final List<int[]> mSearchResults = new ArrayList<>();
+    private int mCurrentSearchIndex = -1;
+
+    // Views
+    private LinearLayout mRootLayout;
     private TextView mTitleText;
     private TextView mMetaText;
+    private TextView mBtnSave;
+    private EditText mEditor;
+    private TextView mLineNumbers;
+    private ScrollView mVScroll;
+    private HorizontalScrollView mHScroll;
 
-    // Search & Replace Bar
+    // Search Bar Views
     private LinearLayout mSearchBar;
     private EditText mSearchInput;
-    private EditText mReplaceInput;
     private TextView mSearchCountText;
+    private ImageView mBtnExpandReplace;
+    private LinearLayout mReplaceRow;
+    private EditText mReplaceInput;
+    private TextView mChipCase;
+    private TextView mChipRegex;
 
     // Undo / Redo Stacks
     private final Deque<String> mUndoStack = new ArrayDeque<>();
@@ -76,12 +99,10 @@ public class TextEditorActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-
         setupEdgeToEdge();
 
         mPrefs = getSharedPreferences("velqor_editor_prefs", MODE_PRIVATE);
         mFontSizeSp = mPrefs.getFloat("font_size", 14f);
-        mIsWrapEnabled = mPrefs.getBoolean("wrap_enabled", true);
 
         String path = getIntent().getStringExtra(EXTRA_PATH);
         mZipPath = getIntent().getStringExtra(EXTRA_ZIP_PATH);
@@ -96,8 +117,28 @@ public class TextEditorActivity extends Activity {
             return;
         }
 
+        // Determine default wrap for this file extension
+        String ext = getFileExtension();
+        boolean defaultWrap = getDefaultWordWrap(mFile != null ? mFile.getName() : "");
+        mIsWrapEnabled = mPrefs.getBoolean("wrap_" + ext, defaultWrap);
+
         buildLayout();
         loadFileContent();
+    }
+
+    private String getFileExtension() {
+        if (mFile == null) return "";
+        String name = mFile.getName();
+        int dot = name.lastIndexOf('.');
+        return (dot >= 0) ? name.substring(dot).toLowerCase() : "";
+    }
+
+    private boolean getDefaultWordWrap(String fileName) {
+        String nameLower = fileName.toLowerCase();
+        if (nameLower.endsWith(".md") || nameLower.endsWith(".txt") || nameLower.endsWith(".log")) {
+            return true;
+        }
+        return false; // Code files (.java, .json, .xml, .html, .js, .css, .sh, .py, etc.)
     }
 
     private void setupEdgeToEdge() {
@@ -116,28 +157,45 @@ public class TextEditorActivity extends Activity {
     }
 
     private void buildLayout() {
-        LinearLayout root = new LinearLayout(this);
-        root.setOrientation(LinearLayout.VERTICAL);
-        root.setBackgroundColor(ThemeTokens.COLOR_BG);
+        mRootLayout = new LinearLayout(this);
+        mRootLayout.setOrientation(LinearLayout.VERTICAL);
+        mRootLayout.setBackgroundColor(ThemeTokens.COLOR_BG);
+
+        // Soft Keyboard & Inset handling: anchors toolbar to keyboard top
+        mRootLayout.setOnApplyWindowInsetsListener((v, insets) -> {
+            int bottomInset = 0;
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                android.graphics.Insets imeInsets = insets.getInsets(android.view.WindowInsets.Type.ime());
+                bottomInset = imeInsets.bottom;
+                if (bottomInset == 0) {
+                    android.graphics.Insets navInsets = insets.getInsets(android.view.WindowInsets.Type.navigationBars());
+                    bottomInset = navInsets.bottom;
+                }
+            } else {
+                bottomInset = insets.getSystemWindowInsetBottom();
+            }
+            v.setPadding(0, 0, 0, bottomInset);
+            return insets;
+        });
 
         // 1. Header Bar
         View header = createHeader();
-        root.addView(header);
+        mRootLayout.addView(header);
 
-        // 2. Search & Replace Bar (Collapsible)
-        mSearchBar = createSearchBar();
-        root.addView(mSearchBar);
-
-        // 3. Editor Container (Line Numbers + Editor inside ScrollViews)
+        // 2. Editor Container (Gutter + Editor)
         View editorContainer = createEditorContainer();
         LinearLayout.LayoutParams edLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
-        root.addView(editorContainer, edLp);
+        mRootLayout.addView(editorContainer, edLp);
 
-        // 4. Accessory Key Toolbar (Above Keyboard)
+        // 3. Compact Search & Replace Bar (Placed above accessory bar)
+        mSearchBar = createCompactSearchBar();
+        mRootLayout.addView(mSearchBar);
+
+        // 4. Accessory Key Toolbar (Attached right above keyboard)
         View accessoryBar = createAccessoryBar();
-        root.addView(accessoryBar);
+        mRootLayout.addView(accessoryBar);
 
-        setContentView(root);
+        setContentView(mRootLayout);
 
         // Pinch to zoom font size
         mScaleDetector = new ScaleGestureDetector(this, new ScaleGestureDetector.SimpleOnScaleGestureListener() {
@@ -147,8 +205,7 @@ public class TextEditorActivity extends Activity {
                 float newSize = mFontSizeSp * factor;
                 if (newSize >= 10f && newSize <= 30f) {
                     mFontSizeSp = newSize;
-                    mEditor.setTextSize(mFontSizeSp);
-                    mLineNumbers.setTextSize(mFontSizeSp);
+                    applyFontSize(mFontSizeSp);
                     mPrefs.edit().putFloat("font_size", mFontSizeSp).apply();
                 }
                 return true;
@@ -164,20 +221,22 @@ public class TextEditorActivity extends Activity {
         bar.setPadding(ThemeTokens.dp(this, 16), padTop, ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 8));
         bar.setBackgroundColor(ThemeTokens.COLOR_SURFACE_GLASS);
 
-        // Back / Close
-        ImageView btnClose = new ImageView(this);
-        btnClose.setImageResource(R.drawable.ic_chevron_right);
-        btnClose.setRotation(180);
-        btnClose.setColorFilter(Color.WHITE);
+        // Back button (<)
+        ImageView btnBack = new ImageView(this);
+        btnBack.setImageResource(R.drawable.ic_chevron_right);
+        btnBack.setRotation(180);
+        btnBack.setColorFilter(Color.WHITE);
         int sz = ThemeTokens.dp(this, 26);
-        btnClose.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
-        btnClose.setOnClickListener(v -> handleBackPress());
-        bar.addView(btnClose);
+        btnBack.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
+        btnBack.setOnClickListener(v -> handleBackPress());
+        bar.addView(btnBack);
 
+        // Title & Metadata column
         LinearLayout textCol = new LinearLayout(this);
         textCol.setOrientation(LinearLayout.VERTICAL);
         LinearLayout.LayoutParams colLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f);
         colLp.leftMargin = ThemeTokens.dp(this, 12);
+        colLp.rightMargin = ThemeTokens.dp(this, 8);
 
         mTitleText = new TextView(this);
         mTitleText.setText(mFile.getName());
@@ -191,33 +250,36 @@ public class TextEditorActivity extends Activity {
         mMetaText.setText("UTF-8 · LF");
         mMetaText.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
         mMetaText.setTextSize(11);
+        mMetaText.setSingleLine(true);
         textCol.addView(mMetaText);
 
         bar.addView(textCol, colLp);
 
-        // Search Action
+        // Search Action Icon
         ImageView btnSearch = createHeaderIcon(R.drawable.ic_search, v -> toggleSearchBar());
         bar.addView(btnSearch);
 
-        // Go to Line Action
-        ImageView btnGoTo = createHeaderIcon(R.drawable.ic_tab_hash, v -> showGoToLineDialog());
-        bar.addView(btnGoTo);
+        // More Menu Action Icon ("⋯")
+        ImageView btnMore = createHeaderIcon(R.drawable.ic_more_dots, v -> showEditorOptionsMenu());
+        bar.addView(btnMore);
 
         // Save Action (Button Pill)
-        TextView btnSave = new TextView(this);
-        btnSave.setText("Lưu");
-        btnSave.setTextColor(Color.WHITE);
-        btnSave.setTextSize(14);
-        btnSave.setTypeface(Typeface.DEFAULT_BOLD);
-        btnSave.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 6),
+        mBtnSave = new TextView(this);
+        mBtnSave.setText("Lưu");
+        mBtnSave.setTextColor(Color.WHITE);
+        mBtnSave.setTextSize(14);
+        mBtnSave.setTypeface(Typeface.DEFAULT_BOLD);
+        mBtnSave.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 6),
                 ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 6));
 
         GradientDrawable saveBg = new GradientDrawable();
         saveBg.setCornerRadius(ThemeTokens.dp(this, 999));
         saveBg.setColor(ThemeTokens.COLOR_ACCENT);
-        btnSave.setBackground(saveBg);
-        btnSave.setOnClickListener(v -> saveDocument(false));
-        bar.addView(btnSave);
+        mBtnSave.setBackground(saveBg);
+        mBtnSave.setOnClickListener(v -> saveDocument(false));
+        mBtnSave.setAlpha(0.35f);
+        mBtnSave.setEnabled(false);
+        bar.addView(mBtnSave);
 
         return bar;
     }
@@ -234,49 +296,100 @@ public class TextEditorActivity extends Activity {
         return iv;
     }
 
-    private LinearLayout createSearchBar() {
-        LinearLayout bar = new LinearLayout(this);
-        bar.setOrientation(LinearLayout.VERTICAL);
-        bar.setBackgroundColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
-        bar.setPadding(ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 8),
-                ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 8));
-        bar.setVisibility(View.GONE);
+    private LinearLayout createCompactSearchBar() {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.VERTICAL);
+        container.setBackgroundColor(ThemeTokens.COLOR_SURFACE_ELEVATED);
+        container.setPadding(ThemeTokens.dp(this, 10), ThemeTokens.dp(this, 6),
+                ThemeTokens.dp(this, 10), ThemeTokens.dp(this, 6));
+        container.setVisibility(View.GONE);
 
-        // Search Row
-        LinearLayout searchRow = new LinearLayout(this);
-        searchRow.setOrientation(LinearLayout.HORIZONTAL);
-        searchRow.setGravity(Gravity.CENTER_VERTICAL);
+        // --- Row 1: Compact Search (~44dp) ---
+        LinearLayout row1 = new LinearLayout(this);
+        row1.setOrientation(LinearLayout.HORIZONTAL);
+        row1.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams r1Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 40));
+        row1.setLayoutParams(r1Lp);
+
+        // Search Field Box
+        LinearLayout searchBox = new LinearLayout(this);
+        searchBox.setOrientation(LinearLayout.HORIZONTAL);
+        searchBox.setGravity(Gravity.CENTER_VERTICAL);
+        searchBox.setPadding(ThemeTokens.dp(this, 8), 0, ThemeTokens.dp(this, 8), 0);
+
+        GradientDrawable sbBg = new GradientDrawable();
+        sbBg.setCornerRadius(ThemeTokens.dp(this, 10));
+        sbBg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
+        sbBg.setStroke(ThemeTokens.dp(this, 1), 0x26FFFFFF); // 15% white thin border
+        searchBox.setBackground(sbBg);
+
+        ImageView searchIcon = new ImageView(this);
+        searchIcon.setImageResource(R.drawable.ic_search);
+        searchIcon.setColorFilter(ThemeTokens.COLOR_SEC_LABEL);
+        int sIconSz = ThemeTokens.dp(this, 16);
+        searchBox.addView(searchIcon, new LinearLayout.LayoutParams(sIconSz, sIconSz));
 
         mSearchInput = new EditText(this);
-        mSearchInput.setHint("Tìm kiếm (hoặc regex)...");
+        mSearchInput.setHint("Tìm trong tệp...");
         mSearchInput.setHintTextColor(ThemeTokens.COLOR_SEC_LABEL);
         mSearchInput.setTextColor(Color.WHITE);
         mSearchInput.setTextSize(13);
         mSearchInput.setSingleLine(true);
         mSearchInput.setBackgroundColor(Color.TRANSPARENT);
-        searchRow.addView(mSearchInput, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        mSearchInput.setPadding(ThemeTokens.dp(this, 6), 0, ThemeTokens.dp(this, 6), 0);
+        searchBox.addView(mSearchInput, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
         mSearchCountText = new TextView(this);
         mSearchCountText.setText("0/0");
         mSearchCountText.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
-        mSearchCountText.setTextSize(12);
-        mSearchCountText.setPadding(ThemeTokens.dp(this, 8), 0, ThemeTokens.dp(this, 8), 0);
-        searchRow.addView(mSearchCountText);
+        mSearchCountText.setTextSize(11);
+        searchBox.addView(mSearchCountText);
 
-        ImageView btnPrev = createBarActionIcon(R.drawable.ic_chevron_right, v -> findNextMatch(false));
+        LinearLayout.LayoutParams sbLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        sbLp.rightMargin = ThemeTokens.dp(this, 6);
+        row1.addView(searchBox, sbLp);
+
+        // Navigation Chevron: Prev
+        ImageView btnPrev = createBarActionIcon(R.drawable.ic_chevron_right, v -> navigateMatch(-1));
         btnPrev.setRotation(180);
-        searchRow.addView(btnPrev);
+        row1.addView(btnPrev);
 
-        ImageView btnNext = createBarActionIcon(R.drawable.ic_chevron_right, v -> findNextMatch(true));
-        searchRow.addView(btnNext);
+        // Navigation Chevron: Next
+        ImageView btnNext = createBarActionIcon(R.drawable.ic_chevron_right, v -> navigateMatch(1));
+        row1.addView(btnNext);
 
-        bar.addView(searchRow);
+        // Expand Chevron (Toggle Replace & Regex Row)
+        mBtnExpandReplace = createBarActionIcon(R.drawable.ic_chevron_right, v -> toggleReplaceRow());
+        mBtnExpandReplace.setRotation(90);
+        row1.addView(mBtnExpandReplace);
 
-        // Replace Row
-        LinearLayout replaceRow = new LinearLayout(this);
-        replaceRow.setOrientation(LinearLayout.HORIZONTAL);
-        replaceRow.setGravity(Gravity.CENTER_VERTICAL);
-        replaceRow.setPadding(0, ThemeTokens.dp(this, 4), 0, 0);
+        // Close Search Button
+        ImageView btnClose = createBarActionIcon(R.drawable.ic_close, v -> toggleSearchBar());
+        btnClose.setColorFilter(ThemeTokens.COLOR_SEC_LABEL);
+        row1.addView(btnClose);
+
+        container.addView(row1);
+
+        // --- Row 2: Replace & Option Chips (Expandable) ---
+        mReplaceRow = new LinearLayout(this);
+        mReplaceRow.setOrientation(LinearLayout.HORIZONTAL);
+        mReplaceRow.setGravity(Gravity.CENTER_VERTICAL);
+        LinearLayout.LayoutParams r2Lp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 36));
+        r2Lp.topMargin = ThemeTokens.dp(this, 6);
+        mReplaceRow.setLayoutParams(r2Lp);
+        mReplaceRow.setVisibility(View.GONE);
+
+        // Replace Box
+        LinearLayout replaceBox = new LinearLayout(this);
+        replaceBox.setOrientation(LinearLayout.HORIZONTAL);
+        replaceBox.setGravity(Gravity.CENTER_VERTICAL);
+        replaceBox.setPadding(ThemeTokens.dp(this, 8), 0, ThemeTokens.dp(this, 8), 0);
+
+        GradientDrawable rbBg = new GradientDrawable();
+        rbBg.setCornerRadius(ThemeTokens.dp(this, 10));
+        rbBg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
+        rbBg.setStroke(ThemeTokens.dp(this, 1), 0x26FFFFFF);
+        replaceBox.setBackground(rbBg);
 
         mReplaceInput = new EditText(this);
         mReplaceInput.setHint("Thay thế bằng...");
@@ -285,41 +398,113 @@ public class TextEditorActivity extends Activity {
         mReplaceInput.setTextSize(13);
         mReplaceInput.setSingleLine(true);
         mReplaceInput.setBackgroundColor(Color.TRANSPARENT);
-        replaceRow.addView(mReplaceInput, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        mReplaceInput.setPadding(ThemeTokens.dp(this, 6), 0, ThemeTokens.dp(this, 6), 0);
+        replaceBox.addView(mReplaceInput, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
 
+        LinearLayout.LayoutParams rbLp = new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f);
+        rbLp.rightMargin = ThemeTokens.dp(this, 6);
+        mReplaceRow.addView(replaceBox, rbLp);
+
+        // Replace one button
         TextView btnReplaceOne = createTextAction("Thay thế", v -> replaceCurrentMatch());
-        replaceRow.addView(btnReplaceOne);
+        mReplaceRow.addView(btnReplaceOne);
 
-        TextView btnReplaceAll = createTextAction("Thay tất cả", v -> replaceAllMatches());
-        replaceRow.addView(btnReplaceAll);
+        // Replace all button
+        TextView btnReplaceAll = createTextAction("Tất cả", v -> replaceAllMatches());
+        mReplaceRow.addView(btnReplaceAll);
 
-        bar.addView(replaceRow);
+        // Aa Chip (Case toggle)
+        mChipCase = createFilterChip("Aa", mMatchCase, v -> {
+            mMatchCase = !mMatchCase;
+            updateChipState(mChipCase, mMatchCase);
+            performSearch();
+        });
+        mReplaceRow.addView(mChipCase);
 
-        return bar;
+        // .* Chip (Regex toggle)
+        mChipRegex = createFilterChip(".*", mUseRegex, v -> {
+            mUseRegex = !mUseRegex;
+            updateChipState(mChipRegex, mUseRegex);
+            performSearch();
+        });
+        mReplaceRow.addView(mChipRegex);
+
+        container.addView(mReplaceRow);
+
+        // Live search text listener
+        mSearchInput.addTextChangedListener(new TextWatcher() {
+            @Override public void beforeTextChanged(CharSequence s, int start, int count, int after) {}
+            @Override public void onTextChanged(CharSequence s, int start, int before, int count) {
+                performSearch();
+            }
+            @Override public void afterTextChanged(Editable s) {}
+        });
+
+        return container;
+    }
+
+    private TextView createFilterChip(String label, boolean isActive, View.OnClickListener listener) {
+        TextView chip = new TextView(this);
+        chip.setText(label);
+        chip.setTextSize(12);
+        chip.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        chip.setPadding(ThemeTokens.dp(this, 8), ThemeTokens.dp(this, 4),
+                ThemeTokens.dp(this, 8), ThemeTokens.dp(this, 4));
+
+        LinearLayout.LayoutParams clp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        clp.leftMargin = ThemeTokens.dp(this, 4);
+        chip.setLayoutParams(clp);
+
+        updateChipState(chip, isActive);
+        chip.setOnClickListener(listener);
+        return chip;
+    }
+
+    private void updateChipState(TextView chip, boolean isActive) {
+        GradientDrawable bg = new GradientDrawable();
+        bg.setCornerRadius(ThemeTokens.dp(this, 999));
+        if (isActive) {
+            bg.setColor(ThemeTokens.COLOR_ACCENT);
+            chip.setTextColor(Color.WHITE);
+        } else {
+            bg.setColor(ThemeTokens.COLOR_ACTION_GROUP_BG);
+            bg.setStroke(ThemeTokens.dp(this, 1), 0x33FFFFFF);
+            chip.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        }
+        chip.setBackground(bg);
+    }
+
+    private void toggleReplaceRow() {
+        mIsReplaceExpanded = !mIsReplaceExpanded;
+        mReplaceRow.setVisibility(mIsReplaceExpanded ? View.VISIBLE : View.GONE);
+        mBtnExpandReplace.setRotation(mIsReplaceExpanded ? 270 : 90);
     }
 
     private View createEditorContainer() {
-        ScrollView vScroll = new ScrollView(this);
-        vScroll.setFillViewport(true);
+        mVScroll = new ScrollView(this);
+        mVScroll.setFillViewport(true);
 
-        HorizontalScrollView hScroll = new HorizontalScrollView(this);
-        hScroll.setFillViewport(true);
+        mHScroll = new HorizontalScrollView(this);
+        mHScroll.setFillViewport(true);
 
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.HORIZONTAL);
 
+        int padTop = ThemeTokens.dp(this, 12);
+        int padBottom = ThemeTokens.dp(this, 100);
+
         // Line Numbers Gutter
         mLineNumbers = new TextView(this);
-        mLineNumbers.setTextColor(0x66FFFFFF); // 40% white
-        mLineNumbers.setTextSize(mFontSizeSp);
+        mLineNumbers.setTextColor(0x55FFFFFF); // Subtle translucent gray
+        mLineNumbers.setTextSize(TypedValue.COMPLEX_UNIT_SP, mFontSizeSp);
         mLineNumbers.setTypeface(Typeface.MONOSPACE);
-        mLineNumbers.setPadding(ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 8),
-                ThemeTokens.dp(this, 8), ThemeTokens.dp(this, 100));
+        mLineNumbers.setPadding(ThemeTokens.dp(this, 10), padTop, ThemeTokens.dp(this, 8), padBottom);
         mLineNumbers.setGravity(Gravity.END);
         mLineNumbers.setText("1");
+        adjustGutterWidth(1);
         row.addView(mLineNumbers);
 
-        // Vertical Separator
+        // Vertical Separator (0.5dp line)
         View sep = new View(this);
         sep.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
         row.addView(sep, new LinearLayout.LayoutParams(ThemeTokens.dp(this, 1), ViewGroup.LayoutParams.MATCH_PARENT));
@@ -327,13 +512,15 @@ public class TextEditorActivity extends Activity {
         // Editor
         mEditor = new EditText(this);
         mEditor.setTextColor(Color.WHITE);
-        mEditor.setTextSize(mFontSizeSp);
+        mEditor.setTextSize(TypedValue.COMPLEX_UNIT_SP, mFontSizeSp);
         mEditor.setTypeface(Typeface.MONOSPACE);
         mEditor.setGravity(Gravity.TOP | Gravity.START);
         mEditor.setBackgroundColor(Color.TRANSPARENT);
-        mEditor.setPadding(ThemeTokens.dp(this, 10), ThemeTokens.dp(this, 8),
-                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 120));
+        mEditor.setPadding(ThemeTokens.dp(this, 8), padTop, ThemeTokens.dp(this, 16), padBottom);
         mEditor.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_MULTI_LINE | InputType.TYPE_TEXT_FLAG_NO_SUGGESTIONS);
+
+        // Apply word wrap setting
+        applyWordWrap(mIsWrapEnabled);
 
         // Auto-indent on Enter
         mEditor.setOnKeyListener((v, keyCode, event) -> {
@@ -369,16 +556,29 @@ public class TextEditorActivity extends Activity {
                 if (!mIsUndoOrRedo) {
                     pushUndoState(s.toString());
                 }
-                mIsDirty = true;
+                setDirty(true);
                 updateLineNumbers();
             }
             @Override public void afterTextChanged(Editable s) {}
         });
 
         row.addView(mEditor, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-        hScroll.addView(row);
-        vScroll.addView(hScroll);
-        return vScroll;
+        mHScroll.addView(row);
+        mVScroll.addView(mHScroll);
+        return mVScroll;
+    }
+
+    private void applyWordWrap(boolean wrap) {
+        mIsWrapEnabled = wrap;
+        mEditor.setHorizontallyScrolling(!wrap);
+        mHScroll.setHorizontalScrollBarEnabled(!wrap);
+        mEditor.post(this::updateLineNumbers);
+    }
+
+    private void applyFontSize(float sizeSp) {
+        mEditor.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
+        mLineNumbers.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
+        mEditor.post(this::updateLineNumbers);
     }
 
     private View createAccessoryBar() {
@@ -392,14 +592,14 @@ public class TextEditorActivity extends Activity {
         row.setOrientation(LinearLayout.HORIZONTAL);
         row.setGravity(Gravity.CENTER_VERTICAL);
 
-        // Key shortcuts
+        // Shortcuts
         String[] keys = {"Tab", "{", "}", "(", ")", "[", "]", "<", ">", "\"", "'", ";", "=", "/", "\\"};
         for (String k : keys) {
             TextView btn = new TextView(this);
             btn.setText(k);
             btn.setTextColor(Color.WHITE);
-            btn.setTextSize(15);
-            btn.setTypeface(Typeface.MONOSPACE);
+            btn.setTextSize(14);
+            btn.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
             btn.setPadding(ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 6),
                     ThemeTokens.dp(this, 12), ThemeTokens.dp(this, 6));
 
@@ -412,19 +612,77 @@ public class TextEditorActivity extends Activity {
             lp.rightMargin = ThemeTokens.dp(this, 6);
             btn.setLayoutParams(lp);
 
-            btn.setOnClickListener(v -> insertTextAtCursor("Tab".equals(k) ? "    " : k));
+            btn.setOnClickListener(v -> handleAccessoryKey(k));
             row.addView(btn);
         }
 
         // Undo & Redo buttons
-        TextView btnUndo = createAccessoryBtn("↶ Undo", v -> performUndo());
+        TextView btnUndo = createAccessoryBtn("↶ Hoàn tác", v -> performUndo());
         row.addView(btnUndo);
 
-        TextView btnRedo = createAccessoryBtn("↷ Redo", v -> performRedo());
+        TextView btnRedo = createAccessoryBtn("↷ Làm lại", v -> performRedo());
         row.addView(btnRedo);
 
         hScroll.addView(row);
         return hScroll;
+    }
+
+    private void handleAccessoryKey(String key) {
+        if ("Tab".equals(key)) {
+            insertTextAtCursor("    ");
+            return;
+        }
+
+        int start = Math.max(0, mEditor.getSelectionStart());
+        int end = Math.max(0, mEditor.getSelectionEnd());
+        Editable text = mEditor.getText();
+        if (text == null) return;
+
+        // Auto-pairing quotes and brackets
+        if (key.length() == 1) {
+            char ch = key.charAt(0);
+            char closeChar = getPairedClosingChar(ch);
+
+            if (closeChar != 0) {
+                // Opening bracket or quote
+                if (start < end) {
+                    // Wrap selected text
+                    String selected = text.subSequence(start, end).toString();
+                    text.replace(start, end, ch + selected + closeChar);
+                    mEditor.setSelection(start + 1, end + 1);
+                } else {
+                    // No selection: insert pair and place cursor inside
+                    text.insert(start, "" + ch + closeChar);
+                    mEditor.setSelection(start + 1);
+                }
+                return;
+            } else if (isClosingChar(ch)) {
+                // Closing bracket
+                if (start == end && start < text.length() && text.charAt(start) == ch) {
+                    // Skip over existing closing character
+                    mEditor.setSelection(start + 1);
+                    return;
+                }
+            }
+        }
+
+        insertTextAtCursor(key);
+    }
+
+    private char getPairedClosingChar(char open) {
+        switch (open) {
+            case '{': return '}';
+            case '(': return ')';
+            case '[': return ']';
+            case '<': return '>';
+            case '"': return '"';
+            case '\'': return '\'';
+            default: return 0;
+        }
+    }
+
+    private boolean isClosingChar(char ch) {
+        return ch == '}' || ch == ')' || ch == ']' || ch == '>';
     }
 
     private TextView createAccessoryBtn(String label, View.OnClickListener listener) {
@@ -454,13 +712,47 @@ public class TextEditorActivity extends Activity {
     }
 
     private void updateLineNumbers() {
-        int lineCount = mEditor.getLineCount();
-        if (lineCount <= 0) lineCount = 1;
-        StringBuilder sb = new StringBuilder();
-        for (int i = 1; i <= lineCount; i++) {
-            sb.append(i).append("\n");
+        Layout layout = mEditor.getLayout();
+        CharSequence text = mEditor.getText();
+        if (layout == null || text == null || text.length() == 0) {
+            mLineNumbers.setText("1");
+            adjustGutterWidth(1);
+            return;
         }
-        mLineNumbers.setText(sb.toString().trim());
+
+        int visualLineCount = layout.getLineCount();
+        StringBuilder sb = new StringBuilder();
+        int logicalLine = 1;
+
+        for (int i = 0; i < visualLineCount; i++) {
+            int lineStart = layout.getLineStart(i);
+            if (i == 0) {
+                sb.append(logicalLine++);
+            } else if (lineStart > 0 && text.charAt(lineStart - 1) == '\n') {
+                sb.append(logicalLine++);
+            }
+            if (i < visualLineCount - 1) {
+                sb.append('\n');
+            }
+        }
+
+        mLineNumbers.setText(sb.toString());
+        adjustGutterWidth(logicalLine);
+    }
+
+    private void adjustGutterWidth(int totalLines) {
+        int digits = (totalLines < 100) ? 3 : (totalLines < 1000 ? 4 : 5);
+        int approxCharWidth = ThemeTokens.dp(this, (int) (mFontSizeSp * 0.65f));
+        int minWidth = digits * approxCharWidth + ThemeTokens.dp(this, 18);
+        mLineNumbers.setMinWidth(minWidth);
+    }
+
+    private void setDirty(boolean dirty) {
+        mIsDirty = dirty;
+        String fileName = (mFile != null) ? mFile.getName() : "Văn bản";
+        mTitleText.setText((mIsDirty ? "● " : "") + fileName);
+        mBtnSave.setAlpha(mIsDirty ? 1.0f : 0.35f);
+        mBtnSave.setEnabled(mIsDirty);
     }
 
     private void loadFileContent() {
@@ -476,19 +768,19 @@ public class TextEditorActivity extends Activity {
                     mIsUndoOrRedo = true;
                     mEditor.setText(mDoc.content);
                     mIsUndoOrRedo = false;
-                    mIsDirty = false;
+                    setDirty(false);
                     updateLineNumbers();
 
                     String meta = mDoc.charsetName + (mDoc.hasBom ? " (BOM)" : "") +
-                            (" \u00B7 ") + ("\r\n".equals(mDoc.lineEnding) ? "CRLF" : "LF");
+                            (" · ") + ("\r\n".equals(mDoc.lineEnding) ? "CRLF" : "LF");
                     if (mDoc.isReadOnlyPaging) {
-                        meta += " \u00B7 [Chỉ đọc theo trang: " + (mDoc.pageIndex + 1) + "/" + mDoc.totalPages + "]";
+                        meta += " · [Chỉ đọc: " + (mDoc.pageIndex + 1) + "/" + mDoc.totalPages + "]";
                         mEditor.setEnabled(false);
                     }
                     mMetaText.setText(meta);
 
                     if (mFile.length() > TextFileIO.WARN_FILE_THRESHOLD && !mDoc.isReadOnlyPaging) {
-                        Toast.makeText(this, "Tệp lớn (" + (mFile.length() / 1024) + " KB) - Hãy cẩn thận khi chỉnh sửa", Toast.LENGTH_SHORT).show();
+                        Toast.makeText(this, "Tệp lớn (" + (mFile.length() / 1024) + " KB) - Chú ý khi chỉnh sửa", Toast.LENGTH_SHORT).show();
                     }
                 });
             } catch (Exception e) {
@@ -508,13 +800,12 @@ public class TextEditorActivity extends Activity {
         new Thread(() -> {
             try {
                 if (mZipPath != null && mEntryName != null) {
-                    // Save into ZIP entry
                     TextFileIO.updateZipEntryText(new File(mZipPath), mEntryName, contentToSave, mDoc);
                 } else {
                     TextFileIO.writeTextFile(mFile, contentToSave, mDoc);
                 }
                 runOnUiThread(() -> {
-                    mIsDirty = false;
+                    setDirty(false);
                     Toast.makeText(this, "Đã lưu thành công!", Toast.LENGTH_SHORT).show();
                 });
             } catch (Exception e) {
@@ -529,11 +820,55 @@ public class TextEditorActivity extends Activity {
             return;
         }
 
-        // Show iOS Sheet confirm exit without saving
-        IosSheet.showDeleteConfirm(this, new File("Thay đổi chưa được lưu!"), () -> {
-            // Dismiss and exit without saving
+        // iOS Bottom Sheet confirm unsaved exit
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Thay đổi chưa lưu");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        TextView subtitle = new TextView(this);
+        subtitle.setText("Bạn có thay đổi chưa lưu trong '" + mFile.getName() + "'. Bạn có muốn lưu trước khi thoát?");
+        subtitle.setTextSize(14);
+        subtitle.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        LinearLayout.LayoutParams subLp = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        subLp.topMargin = ThemeTokens.dp(this, 6);
+        subtitle.setLayoutParams(subLp);
+        sheet.addView(subtitle);
+
+        LinearLayout group = IosSheet.createActionGroup(this);
+        group.addView(IosSheet.createActionRow(this, R.drawable.ic_check, "Lưu thay đổi", false, v -> {
+            dialog.dismiss();
+            saveDocument(false);
             finish();
-        });
+        }, true));
+
+        group.addView(IosSheet.createActionRow(this, R.drawable.ic_close, "Không lưu & Thoát", true, v -> {
+            dialog.dismiss();
+            finish();
+        }, false));
+        sheet.addView(group);
+
+        LinearLayout cancelCard = IosSheet.createActionGroup(this);
+        cancelCard.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        ((LinearLayout.LayoutParams) cancelCard.getLayoutParams()).topMargin = ThemeTokens.dp(this, 12);
+
+        TextView btnCancel = new TextView(this);
+        btnCancel.setText("Hủy");
+        btnCancel.setTextColor(ThemeTokens.COLOR_ACCENT);
+        btnCancel.setTextSize(17);
+        btnCancel.setTypeface(Typeface.DEFAULT_BOLD);
+        btnCancel.setGravity(Gravity.CENTER);
+        btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 50)));
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        cancelCard.addView(btnCancel);
+        sheet.addView(cancelCard);
+
+        IosSheet.show(dialog, sheet);
     }
 
     @Override
@@ -570,73 +905,185 @@ public class TextEditorActivity extends Activity {
     }
 
     private void toggleSearchBar() {
-        mSearchBar.setVisibility(mSearchBar.getVisibility() == View.VISIBLE ? View.GONE : View.VISIBLE);
+        boolean isVis = (mSearchBar.getVisibility() == View.VISIBLE);
+        mSearchBar.setVisibility(isVis ? View.GONE : View.VISIBLE);
+        if (!isVis) {
+            mSearchInput.requestFocus();
+            performSearch();
+        } else {
+            mSearchResults.clear();
+            mCurrentSearchIndex = -1;
+            mSearchCountText.setText("0/0");
+        }
     }
 
-    private void findNextMatch(boolean forward) {
+    private void performSearch() {
         String query = mSearchInput.getText().toString();
-        if (query.isEmpty()) return;
+        mSearchResults.clear();
+        mCurrentSearchIndex = -1;
+
+        if (query.isEmpty()) {
+            mSearchCountText.setText("0/0");
+            mSearchCountText.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+            return;
+        }
 
         try {
-            Pattern pattern = Pattern.compile(query, Pattern.CASE_INSENSITIVE);
+            int flags = mMatchCase ? 0 : Pattern.CASE_INSENSITIVE;
+            Pattern pattern = mUseRegex ? Pattern.compile(query, flags) : Pattern.compile(Pattern.quote(query), flags);
             Matcher matcher = pattern.matcher(mEditor.getText());
 
-            int currentPos = mEditor.getSelectionStart();
-            int matchCount = 0;
-            int nextStart = -1;
-            int nextEnd = -1;
-
             while (matcher.find()) {
-                matchCount++;
-                if (matcher.start() > currentPos && nextStart == -1) {
-                    nextStart = matcher.start();
-                    nextEnd = matcher.end();
-                }
+                mSearchResults.add(new int[]{matcher.start(), matcher.end()});
             }
 
-            mSearchCountText.setText(matchCount + " kết quả");
-            if (nextStart != -1) {
-                mEditor.setSelection(nextStart, nextEnd);
-            } else if (matcher.reset().find()) {
-                // Loop around to first
-                mEditor.setSelection(matcher.start(), matcher.end());
+            int count = mSearchResults.size();
+            if (count > 0) {
+                // Find nearest match to current cursor
+                int cursorPos = mEditor.getSelectionStart();
+                mCurrentSearchIndex = 0;
+                for (int i = 0; i < count; i++) {
+                    if (mSearchResults.get(i)[0] >= cursorPos) {
+                        mCurrentSearchIndex = i;
+                        break;
+                    }
+                }
+                mSearchCountText.setText((mCurrentSearchIndex + 1) + "/" + count);
+                mSearchCountText.setTextColor(ThemeTokens.COLOR_ACCENT);
+                highlightCurrentMatch();
+            } else {
+                mSearchCountText.setText("0/0");
+                mSearchCountText.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
             }
+        } catch (PatternSyntaxException e) {
+            mSearchCountText.setText("Lỗi cú pháp");
+            mSearchCountText.setTextColor(ThemeTokens.COLOR_DANGER);
+        }
+    }
+
+    private void navigateMatch(int direction) {
+        if (mSearchResults.isEmpty()) return;
+        mCurrentSearchIndex += direction;
+        if (mCurrentSearchIndex < 0) {
+            mCurrentSearchIndex = mSearchResults.size() - 1;
+        } else if (mCurrentSearchIndex >= mSearchResults.size()) {
+            mCurrentSearchIndex = 0;
+        }
+        mSearchCountText.setText((mCurrentSearchIndex + 1) + "/" + mSearchResults.size());
+        highlightCurrentMatch();
+    }
+
+    private void highlightCurrentMatch() {
+        if (mCurrentSearchIndex >= 0 && mCurrentSearchIndex < mSearchResults.size()) {
+            int[] span = mSearchResults.get(mCurrentSearchIndex);
+            mEditor.setSelection(span[0], span[1]);
+        }
+    }
+
+    private void replaceCurrentMatch() {
+        if (mCurrentSearchIndex < 0 || mCurrentSearchIndex >= mSearchResults.size()) return;
+        int[] span = mSearchResults.get(mCurrentSearchIndex);
+        String rep = mReplaceInput.getText().toString();
+        mEditor.getText().replace(span[0], span[1], rep);
+        performSearch();
+    }
+
+    private void replaceAllMatches() {
+        String query = mSearchInput.getText().toString();
+        if (query.isEmpty()) return;
+        String rep = mReplaceInput.getText().toString();
+
+        try {
+            int flags = mMatchCase ? 0 : Pattern.CASE_INSENSITIVE;
+            Pattern pattern = mUseRegex ? Pattern.compile(query, flags) : Pattern.compile(Pattern.quote(query), flags);
+            String text = mEditor.getText().toString();
+            String replaced = pattern.matcher(text).replaceAll(rep);
+            mEditor.setText(replaced);
+            performSearch();
+            Toast.makeText(this, "Đã thay thế tất cả", Toast.LENGTH_SHORT).show();
         } catch (PatternSyntaxException e) {
             Toast.makeText(this, "Regex không hợp lệ: " + e.getDescription(), Toast.LENGTH_SHORT).show();
         }
     }
 
-    private void replaceCurrentMatch() {
-        int start = mEditor.getSelectionStart();
-        int end = mEditor.getSelectionEnd();
-        if (start < end) {
-            String rep = mReplaceInput.getText().toString();
-            mEditor.getText().replace(start, end, rep);
-            findNextMatch(true);
-        }
-    }
+    private void showEditorOptionsMenu() {
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
 
-    private void replaceAllMatches() {
-        String query = mSearchInput.getText().toString();
-        String rep = mReplaceInput.getText().toString();
-        if (query.isEmpty()) return;
+        TextView title = new TextView(this);
+        title.setText("Tùy chọn soạn thảo");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
 
-        try {
-            String updated = mEditor.getText().toString().replaceAll(query, rep);
-            mEditor.setText(updated);
-            Toast.makeText(this, "Đã thay thế tất cả", Toast.LENGTH_SHORT).show();
-        } catch (PatternSyntaxException e) {
-            Toast.makeText(this, "Regex sai: " + e.getDescription(), Toast.LENGTH_SHORT).show();
-        }
+        // Group 1: Navigation & Formatting
+        LinearLayout group1 = IosSheet.createActionGroup(this);
+
+        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_tab_hash, "Đi tới dòng...", false, v -> {
+            dialog.dismiss();
+            showGoToLineDialog();
+        }, true));
+
+        String wrapLabel = mIsWrapEnabled ? "Tắt tự xuống dòng (ngắt dòng)" : "Bật tự xuống dòng";
+        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_file_text, wrapLabel, false, v -> {
+            dialog.dismiss();
+            boolean newWrap = !mIsWrapEnabled;
+            applyWordWrap(newWrap);
+            String ext = getFileExtension();
+            mPrefs.edit().putBoolean("wrap_" + ext, newWrap).apply();
+            Toast.makeText(this, newWrap ? "Đã bật tự xuống dòng" : "Đã tắt tự xuống dòng", Toast.LENGTH_SHORT).show();
+        }, true));
+
+        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_info, "Cỡ chữ (" + (int)mFontSizeSp + "sp)", false, v -> {
+            dialog.dismiss();
+            showFontSizeDialog();
+        }, false));
+        sheet.addView(group1);
+
+        // Group 2: File Actions
+        LinearLayout group2 = IosSheet.createActionGroup(this);
+
+        group2.addView(IosSheet.createActionRow(this, R.drawable.ic_copy, "Lưu bản sao...", false, v -> {
+            dialog.dismiss();
+            showSaveCopyDialog();
+        }, true));
+
+        group2.addView(IosSheet.createActionRow(this, R.drawable.ic_share, "Chia sẻ tệp", false, v -> {
+            dialog.dismiss();
+            shareCurrentFile();
+        }, false));
+        sheet.addView(group2);
+
+        // Group 3: File Details
+        LinearLayout group3 = IosSheet.createActionGroup(this);
+        group3.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 12));
+
+        TextView tvMeta = new TextView(this);
+        String info = "Mã hóa: " + (mDoc != null ? mDoc.charsetName : "UTF-8") +
+                (mDoc != null && mDoc.hasBom ? " (có BOM)" : " (không BOM)") + "\n" +
+                "Kiểu xuống dòng: " + (mDoc != null && "\r\n".equals(mDoc.lineEnding) ? "CRLF (Windows)" : "LF (Unix/Android)") + "\n" +
+                "Kích thước: " + (mFile != null ? mFile.length() : 0) + " bytes" + "\n" +
+                "Số dòng: " + (mEditor.getLayout() != null ? mEditor.getLayout().getLineCount() : 1);
+        tvMeta.setText(info);
+        tvMeta.setTextColor(ThemeTokens.COLOR_SEC_LABEL);
+        tvMeta.setTextSize(13);
+        tvMeta.setLineSpacing(ThemeTokens.dp(this, 3), 1f);
+        group3.addView(tvMeta);
+        sheet.addView(group3);
+
+        IosSheet.show(dialog, sheet);
     }
 
     private void showGoToLineDialog() {
-        IosSheet.showInputDialog(this, "Đi tới dòng", "Nhập số dòng", "", "Đi",
+        int maxLine = (mEditor.getLayout() != null) ? mEditor.getLayout().getLineCount() : 1;
+        IosSheet.showInputDialog(this, "Đi tới dòng", "Nhập số dòng (1 đến " + maxLine + ")", "", "Đi",
                 input -> {
                     try {
                         int line = Integer.parseInt(input);
-                        if (line < 1 || line > mEditor.getLineCount()) {
-                            return "Dòng từ 1 đến " + mEditor.getLineCount();
+                        if (line < 1 || line > maxLine) {
+                            return "Dòng hợp lệ từ 1 đến " + maxLine;
                         }
                         return null;
                     } catch (Exception e) {
@@ -645,9 +1092,116 @@ public class TextEditorActivity extends Activity {
                 },
                 lineStr -> {
                     int line = Integer.parseInt(lineStr);
-                    int charIndex = mEditor.getLayout().getLineStart(line - 1);
-                    mEditor.setSelection(charIndex);
+                    if (mEditor.getLayout() != null) {
+                        int charIndex = mEditor.getLayout().getLineStart(line - 1);
+                        mEditor.setSelection(Math.min(charIndex, mEditor.getText().length()));
+                    }
                 });
+    }
+
+    private void showFontSizeDialog() {
+        Dialog dialog = IosSheet.createBaseDialog(this);
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Chọn cỡ chữ");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.COLOR_LABEL);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        LinearLayout card = IosSheet.createActionGroup(this);
+        int[] sizes = {12, 14, 16, 18, 20, 24};
+        for (int i = 0; i < sizes.length; i++) {
+            final int sz = sizes[i];
+            boolean isChosen = ((int)mFontSizeSp == sz);
+            boolean isLast = (i == sizes.length - 1);
+
+            LinearLayout row = new LinearLayout(this);
+            row.setOrientation(LinearLayout.HORIZONTAL);
+            row.setGravity(Gravity.CENTER_VERTICAL);
+            row.setPadding(ThemeTokens.dp(this, 16), 0, ThemeTokens.dp(this, 16), 0);
+            row.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 48)));
+
+            TextView tv = new TextView(this);
+            tv.setText(sz + " sp" + (sz == 14 ? " (Mặc định)" : ""));
+            tv.setTextSize(16);
+            tv.setTextColor(isChosen ? ThemeTokens.COLOR_ACCENT : ThemeTokens.COLOR_LABEL);
+            tv.setTypeface(isChosen ? Typeface.DEFAULT_BOLD : Typeface.DEFAULT);
+            row.addView(tv, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+
+            if (isChosen) {
+                ImageView check = new ImageView(this);
+                check.setImageResource(R.drawable.ic_check);
+                check.setColorFilter(ThemeTokens.COLOR_ACCENT);
+                int checkSz = ThemeTokens.dp(this, 18);
+                row.addView(check, new LinearLayout.LayoutParams(checkSz, checkSz));
+            }
+
+            row.setOnClickListener(v -> {
+                dialog.dismiss();
+                mFontSizeSp = sz;
+                applyFontSize(mFontSizeSp);
+                mPrefs.edit().putFloat("font_size", mFontSizeSp).apply();
+            });
+
+            card.addView(row);
+            if (!isLast) {
+                View div = new View(this);
+                div.setBackgroundColor(ThemeTokens.COLOR_SEPARATOR_INSET);
+                card.addView(div, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 1)));
+            }
+        }
+        sheet.addView(card);
+        IosSheet.show(dialog, sheet);
+    }
+
+    private void showSaveCopyDialog() {
+        String baseName = mFile != null ? mFile.getName() : "copy.txt";
+        String defaultCopyName = "copy_" + baseName;
+
+        IosSheet.showInputDialog(this, "Lưu bản sao", "Nhập tên tệp mới", defaultCopyName, "Lưu",
+                input -> {
+                    if (input == null || input.trim().isEmpty()) return "Tên tệp không được rỗng";
+                    if (input.contains("/") || input.indexOf('\0') >= 0) return "Tên tệp chứa ký tự không hợp lệ";
+                    File parent = (mFile != null) ? mFile.getParentFile() : null;
+                    if (parent != null && new File(parent, input.trim()).exists()) {
+                        return "Tệp đã tồn tại trong thư mục";
+                    }
+                    return null;
+                },
+                newName -> {
+                    File parent = (mFile != null) ? mFile.getParentFile() : null;
+                    if (parent != null) {
+                        File dest = new File(parent, newName.trim());
+                        new Thread(() -> {
+                            try {
+                                TextFileIO.writeTextFile(dest, mEditor.getText().toString(), mDoc);
+                                runOnUiThread(() -> Toast.makeText(this, "Đã lưu bản sao: " + dest.getName(), Toast.LENGTH_SHORT).show());
+                            } catch (Exception e) {
+                                runOnUiThread(() -> Toast.makeText(this, "Lỗi lưu bản sao: " + e.getMessage(), Toast.LENGTH_LONG).show());
+                            }
+                        }).start();
+                    }
+                });
+    }
+
+    private void shareCurrentFile() {
+        if (mFile == null || !mFile.exists()) {
+            Toast.makeText(this, "Tệp không tồn tại để chia sẻ", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        try {
+            Uri uri = VelqorFileProvider.getUriForFile(this, "com.velqor.app.fileprovider", mFile);
+            Intent shareIntent = new Intent(Intent.ACTION_SEND);
+            shareIntent.setType("text/*");
+            shareIntent.putExtra(Intent.EXTRA_STREAM, uri);
+            shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            startActivity(Intent.createChooser(shareIntent, "Chia sẻ '" + mFile.getName() + "'"));
+        } catch (Exception e) {
+            Toast.makeText(this, "Không thể chia sẻ tệp: " + e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
     }
 
     private ImageView createBarActionIcon(int iconRes, View.OnClickListener listener) {
@@ -655,7 +1209,9 @@ public class TextEditorActivity extends Activity {
         iv.setImageResource(iconRes);
         iv.setColorFilter(ThemeTokens.COLOR_ACCENT);
         int sz = ThemeTokens.dp(this, 20);
-        iv.setLayoutParams(new LinearLayout.LayoutParams(sz, sz));
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(sz, sz);
+        lp.leftMargin = ThemeTokens.dp(this, 6);
+        iv.setLayoutParams(lp);
         iv.setOnClickListener(listener);
         return iv;
     }
@@ -664,8 +1220,9 @@ public class TextEditorActivity extends Activity {
         TextView tv = new TextView(this);
         tv.setText(text);
         tv.setTextColor(ThemeTokens.COLOR_ACCENT);
-        tv.setTextSize(13);
-        tv.setPadding(ThemeTokens.dp(this, 8), 0, ThemeTokens.dp(this, 8), 0);
+        tv.setTextSize(12);
+        tv.setTypeface(Typeface.DEFAULT_BOLD);
+        tv.setPadding(ThemeTokens.dp(this, 6), ThemeTokens.dp(this, 4), ThemeTokens.dp(this, 6), ThemeTokens.dp(this, 4));
         tv.setOnClickListener(listener);
         return tv;
     }

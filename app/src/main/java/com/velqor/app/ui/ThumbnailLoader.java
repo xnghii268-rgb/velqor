@@ -126,20 +126,30 @@ public final class ThumbnailLoader {
         try {
             PackageManager pm = mContext.getPackageManager();
             PackageInfo pi = pm.getPackageArchiveInfo(file.getAbsolutePath(), 0);
-            if (pi != null) {
+            if (pi != null && pi.applicationInfo != null) {
                 pi.applicationInfo.sourceDir = file.getAbsolutePath();
                 pi.applicationInfo.publicSourceDir = file.getAbsolutePath();
                 Drawable iconDrawable = null;
-                try {
-                    iconDrawable = pi.applicationInfo.loadIcon(pm);
-                } catch (Throwable t) {
+
+                if (pi.applicationInfo.icon != 0) {
                     try {
                         android.content.res.Resources res = pm.getResourcesForApplication(pi.applicationInfo);
-                        if (pi.applicationInfo.icon != 0) {
-                            iconDrawable = res.getDrawable(pi.applicationInfo.icon, null);
+                        if (res != null) {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
+                                iconDrawable = res.getDrawableForDensity(pi.applicationInfo.icon, android.util.DisplayMetrics.DENSITY_XXXHIGH, null);
+                            } else {
+                                iconDrawable = res.getDrawable(pi.applicationInfo.icon);
+                            }
                         }
                     } catch (Throwable ignored) {}
                 }
+
+                if (iconDrawable == null) {
+                    try {
+                        iconDrawable = pi.applicationInfo.loadIcon(pm);
+                    } catch (Throwable ignored) {}
+                }
+
                 if (iconDrawable != null) {
                     int w = iconDrawable.getIntrinsicWidth();
                     int h = iconDrawable.getIntrinsicHeight();

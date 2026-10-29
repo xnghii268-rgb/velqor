@@ -43,6 +43,7 @@ import com.velqor.app.ui.FloatingTabBar;
 import com.velqor.app.ui.HeaderView;
 import com.velqor.app.ui.ImageViewerActivity;
 import com.velqor.app.ui.IosSheet;
+import com.velqor.app.ui.NewItemSheet;
 import com.velqor.app.ui.TextEditorActivity;
 
 import java.io.File;
@@ -85,6 +86,7 @@ public class MainActivity extends Activity {
         setupEdgeToEdge();
 
         mCurrentDir = Environment.getExternalStorageDirectory();
+        mShowHidden = getSharedPreferences("velqor_prefs", MODE_PRIVATE).getBoolean("show_hidden", false);
         checkAndRequestPermissions();
 
         // Predictive back gesture support for Android 13+
@@ -126,7 +128,21 @@ public class MainActivity extends Activity {
         mHeaderView = new HeaderView(this, getStatusBarHeight());
         mHeaderView.setOnHeaderActionListener(new HeaderView.OnHeaderActionListener() {
             @Override public void onSearchClick() { showSearchSheet(); }
-            @Override public void onNewFolderClick() { showNewFolderSheet(); }
+            @Override public void onNewFolderClick() {
+                NewItemSheet.showCreateMenu(MainActivity.this, mCurrentDir, new NewItemSheet.OnItemCreateListener() {
+                    @Override
+                    public void onCreateFolderRequested() {
+                        showNewFolderSheet();
+                    }
+
+                    @Override
+                    public void onFileCreated(File newFile) {
+                        refreshDirectory();
+                        vibrateLight();
+                        openTextEditor(newFile);
+                    }
+                });
+            }
             @Override public void onMoreClick() { showMoreOptionsSheet(); }
             @Override public void onBreadcrumbClick(File directory) {
                 if (!directory.equals(mCurrentDir)) {
@@ -287,6 +303,9 @@ public class MainActivity extends Activity {
     }
 
     private void switchTab(String tabKey) {
+        if (mHeaderView != null) {
+            mHeaderView.setNewItemButtonVisibility("files".equals(tabKey));
+        }
         if ("files".equals(tabKey)) {
             refreshDirectory();
         } else if ("archive".equals(tabKey)) {
@@ -1015,15 +1034,34 @@ public class MainActivity extends Activity {
             showNewFolderSheet();
         }, true));
 
-        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_more_dots, "Sắp xếp danh sách", false, v -> {
+        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_file_text, "Tạo tệp mới", false, v -> {
+            dialog.dismiss();
+            NewItemSheet.showCreateFileDialog(this, mCurrentDir, "Tệp mới.txt", new NewItemSheet.OnItemCreateListener() {
+                @Override
+                public void onCreateFolderRequested() {
+                    showNewFolderSheet();
+                }
+
+                @Override
+                public void onFileCreated(File newFile) {
+                    refreshDirectory();
+                    vibrateLight();
+                    openTextEditor(newFile);
+                }
+            });
+        }, true));
+
+        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_sort, "Sắp xếp danh sách", false, v -> {
             dialog.dismiss();
             showSortActionSheet();
         }, true));
 
+        int eyeIcon = mShowHidden ? R.drawable.ic_eye_off : R.drawable.ic_eye;
         String hiddenLabel = mShowHidden ? "Ẩn tệp tin ẩn" : "Hiện tệp tin ẩn";
-        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_info, hiddenLabel, false, v -> {
+        group1.addView(IosSheet.createActionRow(this, eyeIcon, hiddenLabel, false, v -> {
             dialog.dismiss();
             mShowHidden = !mShowHidden;
+            getSharedPreferences("velqor_prefs", MODE_PRIVATE).edit().putBoolean("show_hidden", mShowHidden).apply();
             refreshDirectory();
         }, false));
         sheet.addView(group1);

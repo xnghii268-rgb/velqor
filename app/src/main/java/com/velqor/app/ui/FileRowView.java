@@ -209,6 +209,8 @@ public class FileRowView extends LinearLayout {
         if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov")) return R.drawable.ic_file_video;
         if (name.endsWith(".mp3") || name.endsWith(".flac") || name.endsWith(".wav") || name.endsWith(".ogg") || name.endsWith(".m4a")) return R.drawable.ic_file_audio;
         if (name.endsWith(".apk")) return R.drawable.ic_file_apk;
+        if (isCodeFile(name)) return R.drawable.ic_file_code;
+        if (isPlainTextFile(name)) return R.drawable.ic_file_text;
         return R.drawable.ic_file_doc;
     }
 
@@ -236,8 +238,25 @@ public class FileRowView extends LinearLayout {
         if (name.endsWith(".mp4") || name.endsWith(".mkv") || name.endsWith(".avi") || name.endsWith(".mov")) return ThemeTokens.COLOR_ICON_VIDEO;
         if (name.endsWith(".mp3") || name.endsWith(".flac") || name.endsWith(".wav") || name.endsWith(".ogg") || name.endsWith(".m4a")) return ThemeTokens.COLOR_ICON_AUDIO;
         if (name.endsWith(".apk")) return ThemeTokens.COLOR_ICON_APK;
-        if (name.endsWith(".pdf") || name.endsWith(".txt") || name.endsWith(".doc") || name.endsWith(".docx")) return ThemeTokens.COLOR_ICON_DOCUMENT;
-        return ThemeTokens.COLOR_ICON_OTHER;
+        if (isCodeFile(name)) return 0xFF5AC8FA; // Soft Cyan code accent
+        if (isPlainTextFile(name)) return 0xFF8E8E93; // Muted Silver text
+        if (name.endsWith(".pdf")) return 0xFFFF453A; // PDF Red
+        if (name.endsWith(".doc") || name.endsWith(".docx")) return 0xFF0A84FF; // Word Blue
+        return ThemeTokens.COLOR_ICON_DOCUMENT;
+    }
+
+    private static boolean isCodeFile(String name) {
+        return name.endsWith(".html") || name.endsWith(".htm") || name.endsWith(".md") ||
+               name.endsWith(".json") || name.endsWith(".xml") || name.endsWith(".js") ||
+               name.endsWith(".css") || name.endsWith(".java") || name.endsWith(".kt") ||
+               name.endsWith(".sh") || name.endsWith(".py") || name.endsWith(".c") ||
+               name.endsWith(".cpp") || name.endsWith(".h") || name.endsWith(".sql") ||
+               name.endsWith(".gradle") || name.endsWith(".yaml") || name.endsWith(".yml");
+    }
+
+    private static boolean isPlainTextFile(String name) {
+        return name.endsWith(".txt") || name.endsWith(".log") || name.endsWith(".ini") ||
+               name.endsWith(".conf") || name.endsWith(".properties") || name.endsWith(".env");
     }
 
     public static String middleEllipsis(String text, int maxLen) {

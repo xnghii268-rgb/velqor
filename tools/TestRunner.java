@@ -1,6 +1,7 @@
 package tools;
 
 import com.velqor.app.archive.ZipManager;
+import com.velqor.app.files.FileCreator;
 import com.velqor.app.files.FileRepository;
 import com.velqor.app.files.TextFileIO;
 import com.velqor.app.files.ThumbnailCache;
@@ -52,6 +53,7 @@ public class TestRunner {
         testStandardSha256Vectors();
         testTextFileIOOperations();
         testThumbnailKeyAndTextFileDetection();
+        testFileCreatorOperations();
 
         System.out.println("\n--------------------------------------------------");
         System.out.println("Total tests: " + (passed + failed) + " | Passed: " + passed + " | Failed: " + failed);
@@ -435,6 +437,63 @@ public class TestRunner {
             assertTrue("File with NUL byte is not text", !TextFileIO.isTextFile(binFile));
         } finally {
             binFile.delete();
+        }
+    }
+
+    private static void testFileCreatorOperations() throws Exception {
+        System.out.println("[11/11] Testing FileCreator Validation, Template & Atomic Creation...");
+
+        File testDir = new File(System.getProperty("java.io.tmpdir"), "velqor_creator_test_" + System.currentTimeMillis());
+        testDir.mkdirs();
+        try {
+            // 1. Validation tests
+            FileCreator.ValidationResult rEmpty = FileCreator.validateFileName(testDir, "");
+            assertTrue("Empty name is invalid", !rEmpty.isValid);
+
+            FileCreator.ValidationResult rSlash = FileCreator.validateFileName(testDir, "foo/bar");
+            assertTrue("Slash in name is invalid", !rSlash.isValid);
+
+            FileCreator.ValidationResult rDot = FileCreator.validateFileName(testDir, "..");
+            assertTrue("Dot dot is invalid", !rDot.isValid);
+
+            FileCreator.ValidationResult rHidden = FileCreator.validateFileName(testDir, ".gitignore");
+            assertTrue("Hidden file starting with dot triggers warning", rHidden.isValid && rHidden.isWarning);
+
+            FileCreator.ValidationResult rValid = FileCreator.validateFileName(testDir, "document.txt");
+            assertTrue("Valid filename is valid and not warning", rValid.isValid && !rValid.isWarning);
+
+            // 2. Duplicate detection & suggestion
+            File existing = new File(testDir, "document.txt");
+            existing.createNewFile();
+            FileCreator.ValidationResult rDup = FileCreator.validateFileName(testDir, "document.txt");
+            assertTrue("Duplicate filename is invalid", !rDup.isValid);
+            assertEquals("Suggested unique name", "document (2).txt", rDup.suggestedName);
+
+            // 3. Templates check
+            assertEquals("Markdown template", "# doc\n\n", FileCreator.getTemplateContent("doc.md"));
+            assertTrue("HTML template has doctype", FileCreator.getTemplateContent("page.html").contains("<!DOCTYPE html>"));
+            assertTrue("JSON template has braces", FileCreator.getTemplateContent("data.json").contains("{\n"));
+            assertEquals("Shell template", "#!/bin/sh\n\n", FileCreator.getTemplateContent("run.sh"));
+            assertEquals("Python template", "#!/usr/bin/env python3\n\n", FileCreator.getTemplateContent("app.py"));
+            assertEquals("Text template is empty", "", FileCreator.getTemplateContent("notes.txt"));
+
+            // 4. Atomic file creation with template
+            File createdMd = FileCreator.createNewFile(testDir, "README.md");
+            assertTrue("README.md exists", createdMd.exists());
+            String mdContent = new String(java.nio.file.Files.readAllBytes(createdMd.toPath()), StandardCharsets.UTF_8);
+            assertEquals("README.md content matched template", "# README\n\n", mdContent);
+
+            File createdPy = FileCreator.createNewFile(testDir, "main.py");
+            assertTrue("main.py exists", createdPy.exists());
+            String pyContent = new String(java.nio.file.Files.readAllBytes(createdPy.toPath()), StandardCharsets.UTF_8);
+            assertEquals("main.py content matched template", "#!/usr/bin/env python3\n\n", pyContent);
+
+        } finally {
+            File[] files = testDir.listFiles();
+            if (files != null) {
+                for (File f : files) f.delete();
+            }
+            testDir.delete();
         }
     }
 
