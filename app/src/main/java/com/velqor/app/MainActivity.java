@@ -442,11 +442,18 @@ public class MainActivity extends Activity {
     }
 
     private void enterSelectionMode() {
+        enterSelectionMode(null);
+    }
+
+    private void enterSelectionMode(String initialPath) {
         mIsSelectionMode = true;
         if (mDirectoryWatcher != null) {
             mDirectoryWatcher.setPaused(true);
         }
         mSelectedPaths.clear();
+        if (initialPath != null) {
+            mSelectedPaths.add(initialPath);
+        }
         vibrateLight();
         mSelectionBar.setVisibility(View.VISIBLE);
         updateSelectionCount();
@@ -616,6 +623,15 @@ public class MainActivity extends Activity {
                     toggleFileSelection(clickedFile.getAbsolutePath());
                 } else {
                     showFileActionSheet(clickedFile);
+                }
+            }
+
+            @Override
+            public void onIconClick(File clickedFile) {
+                if (!mIsSelectionMode) {
+                    enterSelectionMode(clickedFile.getAbsolutePath());
+                } else {
+                    toggleFileSelection(clickedFile.getAbsolutePath());
                 }
             }
         };
@@ -935,13 +951,198 @@ public class MainActivity extends Activity {
 
     private void showBatchDeleteConfirmSheet() {
         if (mSelectedPaths.isEmpty()) return;
-        IosSheet.showDeleteConfirm(this, new File(mSelectedPaths.size() + " mục đã chọn"), () -> {
-            for (String p : mSelectedPaths) {
-                FileRepository.deleteRecursive(new File(p));
+        int folderCount = 0;
+        int fileCount = 0;
+        for (String p : mSelectedPaths) {
+            if (new File(p).isDirectory()) {
+                folderCount++;
+            } else {
+                fileCount++;
             }
+        }
+
+        if (folderCount > 0 && fileCount > 0) {
+            Dialog dialog = createManagedDialog();
+            LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+            TextView title = new TextView(this);
+            title.setText("Tùy chọn xóa (" + mSelectedPaths.size() + " mục)");
+            title.setTextSize(18);
+            title.setTextColor(ThemeTokens.getLabelColor(this));
+            title.setTypeface(Typeface.DEFAULT_BOLD);
+            sheet.addView(title);
+
+            LinearLayout group = IosSheet.createActionGroup(this);
+            group.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Xóa tất cả mục đã chọn (" + mSelectedPaths.size() + ")", true, v -> {
+                dialog.dismiss();
+                executeDeleteSelected();
+            }, true));
+            group.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Giữ thư mục, chỉ xóa " + fileCount + " tệp", true, v -> {
+                dialog.dismiss();
+                executeDeleteFilesOnly();
+            }, true));
+            group.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Giữ tệp, chỉ xóa " + folderCount + " thư mục", true, v -> {
+                dialog.dismiss();
+                executeDeleteFoldersOnly();
+            }, false));
+            sheet.addView(group);
+
+            IosSheet.show(dialog, sheet);
+        } else {
+            IosSheet.showDeleteConfirm(this, new File(mSelectedPaths.size() + " mục đã chọn"), this::executeDeleteSelected);
+        }
+    }
+
+    private void executeDeleteSelected() {
+        for (String p : mSelectedPaths) {
+            FileRepository.deleteRecursive(new File(p));
+        }
+        exitSelectionMode();
+        Toast.makeText(this, "Đã xóa các mục đã chọn", Toast.LENGTH_SHORT).show();
+    }
+
+    private void executeDeleteFilesOnly() {
+        int deleted = 0;
+        List<String> toRemove = new ArrayList<>();
+        for (String p : mSelectedPaths) {
+            File f = new File(p);
+            if (!f.isDirectory()) {
+                if (FileRepository.deleteRecursive(f)) {
+                    deleted++;
+                }
+                toRemove.add(p);
+            }
+        }
+        mSelectedPaths.removeAll(toRemove);
+        if (mSelectedPaths.isEmpty()) {
             exitSelectionMode();
-            Toast.makeText(this, "Đã xóa các mục đã chọn", Toast.LENGTH_SHORT).show();
-        });
+        } else {
+            updateSelectionCount();
+            refreshDirectory();
+        }
+        Toast.makeText(this, "Đã giữ thư mục, xóa " + deleted + " tệp", Toast.LENGTH_SHORT).show();
+    }
+
+    private void executeDeleteFoldersOnly() {
+        int deleted = 0;
+        List<String> toRemove = new ArrayList<>();
+        for (String p : mSelectedPaths) {
+            File f = new File(p);
+            if (f.isDirectory()) {
+                if (FileRepository.deleteRecursive(f)) {
+                    deleted++;
+                }
+                toRemove.add(p);
+            }
+        }
+        mSelectedPaths.removeAll(toRemove);
+        if (mSelectedPaths.isEmpty()) {
+            exitSelectionMode();
+        } else {
+            updateSelectionCount();
+            refreshDirectory();
+        }
+        Toast.makeText(this, "Đã giữ tệp, xóa " + deleted + " thư mục", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showDeleteUnselectedConfirmSheet() {
+        if (mCurrentDir == null) return;
+        File[] allFiles = mCurrentDir.listFiles();
+        if (allFiles == null || allFiles.length == 0) return;
+
+        int unselectedCount = 0;
+        for (File f : allFiles) {
+            if (!mSelectedPaths.contains(f.getAbsolutePath())) {
+                unselectedCount++;
+            }
+        }
+        if (unselectedCount == 0) {
+            Toast.makeText(this, "Không có mục nào khác để xóa", Toast.LENGTH_SHORT).show();
+            return;
+        }
+
+        final int count = unselectedCount;
+        IosSheet.showDangerConfirmDialog(this,
+                "Xác nhận xóa " + count + " mục còn lại?",
+                "Giữ " + mSelectedPaths.size() + " mục đã chọn và xóa " + count + " mục khác trong thư mục hiện tại.",
+                "Xóa " + count + " mục",
+                () -> executeDeleteUnselected(allFiles));
+    }
+
+    private void executeDeleteUnselected(File[] allFiles) {
+        int deleted = 0;
+        for (File f : allFiles) {
+            if (!mSelectedPaths.contains(f.getAbsolutePath())) {
+                if (FileRepository.deleteRecursive(f)) {
+                    deleted++;
+                }
+            }
+        }
+        exitSelectionMode();
+        Toast.makeText(this, "Đã giữ mục đã chọn, xóa " + deleted + " mục còn lại", Toast.LENGTH_SHORT).show();
+    }
+
+    private void showClearFolderContentsConfirmSheet() {
+        int folderCount = 0;
+        for (String p : mSelectedPaths) {
+            if (new File(p).isDirectory()) folderCount++;
+        }
+        if (folderCount == 0) return;
+
+        final int count = folderCount;
+        IosSheet.showDangerConfirmDialog(this,
+                "Xóa toàn bộ nội dung bên trong?",
+                "Sẽ xóa tất cả tệp/thư mục con bên trong " + count + " thư mục đã chọn nhưng giữ lại vỏ thư mục rỗng.",
+                "Xóa nội dung",
+                this::executeClearFolderContents);
+    }
+
+    private void executeClearFolderContents() {
+        int cleared = 0;
+        for (String p : mSelectedPaths) {
+            File f = new File(p);
+            if (f.isDirectory()) {
+                if (FileRepository.clearDirectoryContents(f)) {
+                    cleared++;
+                }
+            }
+        }
+        refreshDirectory();
+        Toast.makeText(this, "Đã xóa sạch nội dung của " + cleared + " thư mục", Toast.LENGTH_SHORT).show();
+    }
+
+    private void selectAllInCurrentDir() {
+        if (mCurrentDir == null) return;
+        File[] files = mCurrentDir.listFiles();
+        if (files == null || files.length == 0) return;
+        for (File f : files) {
+            if (!mShowHidden && f.getName().startsWith(".")) continue;
+            mSelectedPaths.add(f.getAbsolutePath());
+        }
+        updateSelectionCount();
+        refreshDirectory();
+    }
+
+    private void invertSelectionInCurrentDir() {
+        if (mCurrentDir == null) return;
+        File[] files = mCurrentDir.listFiles();
+        if (files == null || files.length == 0) return;
+        Set<String> newSelection = new HashSet<>();
+        for (File f : files) {
+            if (!mShowHidden && f.getName().startsWith(".")) continue;
+            String path = f.getAbsolutePath();
+            if (!mSelectedPaths.contains(path)) {
+                newSelection.add(path);
+            }
+        }
+        mSelectedPaths.clear();
+        mSelectedPaths.addAll(newSelection);
+        if (mSelectedPaths.isEmpty()) {
+            exitSelectionMode();
+        } else {
+            updateSelectionCount();
+            refreshDirectory();
+        }
     }
 
     private void showRenameSheet(File f) {
@@ -1328,6 +1529,12 @@ public class MainActivity extends Activity {
                         public void onLongClick(File clickedFile) {
                             showFileActionSheet(clickedFile);
                         }
+
+                        @Override
+                        public void onIconClick(File clickedFile) {
+                            mIsSearchActive = false;
+                            enterSelectionMode(clickedFile.getAbsolutePath());
+                        }
                     });
                     mFileListGroup.addView(row);
                 }
@@ -1409,26 +1616,73 @@ public class MainActivity extends Activity {
         Dialog dialog = createManagedDialog();
         LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
 
+        int totalCount = mSelectedPaths.size();
+        int folderCount = 0;
+        int fileCount = 0;
+        for (String path : mSelectedPaths) {
+            File f = new File(path);
+            if (f.isDirectory()) {
+                folderCount++;
+            } else {
+                fileCount++;
+            }
+        }
+
         TextView title = new TextView(this);
-        title.setText("Đã chọn " + mSelectedPaths.size() + " mục");
+        title.setText("Đã chọn " + totalCount + " mục");
         title.setTextSize(20);
         title.setTextColor(ThemeTokens.getLabelColor(this));
         title.setTypeface(Typeface.DEFAULT_BOLD);
         sheet.addView(title);
 
-        LinearLayout group1 = IosSheet.createActionGroup(this);
-        group1.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive, "Nén thành ZIP", false, v -> {
+        LinearLayout groupSelection = IosSheet.createActionGroup(this);
+        groupSelection.addView(IosSheet.createActionRow(this, R.drawable.ic_check, "Chọn tất cả trong thư mục", false, v -> {
+            dialog.dismiss();
+            selectAllInCurrentDir();
+        }, true));
+        groupSelection.addView(IosSheet.createActionRow(this, R.drawable.ic_chevron_right, "Đảo lựa chọn", false, v -> {
+            dialog.dismiss();
+            invertSelectionInCurrentDir();
+        }, false));
+        sheet.addView(groupSelection);
+
+        LinearLayout groupZip = IosSheet.createActionGroup(this);
+        groupZip.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive, "Nén thành ZIP", false, v -> {
             dialog.dismiss();
             compressSelected();
         }, false));
-        sheet.addView(group1);
+        sheet.addView(groupZip);
 
-        LinearLayout group2 = IosSheet.createActionGroup(this);
-        group2.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Xóa các mục đã chọn", true, v -> {
+        LinearLayout groupDelete = IosSheet.createActionGroup(this);
+        groupDelete.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Xóa tất cả mục đã chọn (" + totalCount + ")", true, v -> {
             dialog.dismiss();
             showBatchDeleteConfirmSheet();
-        }, false));
-        sheet.addView(group2);
+        }, (folderCount > 0 && fileCount > 0) || folderCount > 0));
+
+        if (folderCount > 0 && fileCount > 0) {
+            groupDelete.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Giữ thư mục, chỉ xóa " + fileCount + " tệp", true, v -> {
+                dialog.dismiss();
+                executeDeleteFilesOnly();
+            }, true));
+            groupDelete.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Giữ tệp, chỉ xóa " + folderCount + " thư mục", true, v -> {
+                dialog.dismiss();
+                executeDeleteFoldersOnly();
+            }, true));
+        }
+
+        groupDelete.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Giữ mục đã chọn, xóa các mục còn lại", true, v -> {
+            dialog.dismiss();
+            showDeleteUnselectedConfirmSheet();
+        }, folderCount > 0));
+
+        if (folderCount > 0) {
+            groupDelete.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Xóa sạch nội dung, giữ vỏ thư mục", true, v -> {
+                dialog.dismiss();
+                showClearFolderContentsConfirmSheet();
+            }, false));
+        }
+
+        sheet.addView(groupDelete);
 
         IosSheet.show(dialog, sheet);
     }

@@ -297,6 +297,64 @@ public final class IosSheet {
         show(dialog, sheet);
     }
 
+    public static void showDangerConfirmDialog(Context ctx, String titleStr, String messageStr, String confirmBtnText, Runnable onConfirm) {
+        Dialog dialog = createBaseDialog(ctx);
+        LinearLayout sheet = createSheetRoot(ctx, dialog);
+
+        LinearLayout card = createActionGroup(ctx);
+        card.setPadding(ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 16),
+                ThemeTokens.dp(ctx, 16), ThemeTokens.dp(ctx, 16));
+        card.setGravity(Gravity.CENTER);
+
+        TextView title = new TextView(ctx);
+        title.setText(titleStr);
+        title.setTextColor(ThemeTokens.getLabelColor(ctx));
+        title.setTextSize(16);
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        title.setGravity(Gravity.CENTER);
+        card.addView(title);
+
+        TextView msg = new TextView(ctx);
+        msg.setText(messageStr);
+        msg.setTextColor(ThemeTokens.getSecondaryLabelColor(ctx));
+        msg.setTextSize(13);
+        msg.setGravity(Gravity.CENTER);
+        msg.setPadding(0, ThemeTokens.dp(ctx, 6), 0, ThemeTokens.dp(ctx, 12));
+        card.addView(msg);
+
+        View div = new View(ctx);
+        div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(ctx));
+        div.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(ctx, 1) / 2)));
+        card.addView(div);
+
+        TextView btnAction = new TextView(ctx);
+        btnAction.setText(confirmBtnText);
+        btnAction.setTextColor(ThemeTokens.COLOR_DANGER);
+        btnAction.setTextSize(17);
+        btnAction.setTypeface(Typeface.DEFAULT_BOLD);
+        btnAction.setGravity(Gravity.CENTER);
+        btnAction.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(ctx, 48)));
+        btnAction.setOnClickListener(v -> {
+            dialog.dismiss();
+            if (onConfirm != null) onConfirm.run();
+        });
+        card.addView(btnAction);
+        sheet.addView(card);
+
+        LinearLayout cancelCard = createActionGroup(ctx);
+        TextView btnCancel = new TextView(ctx);
+        btnCancel.setText("Hủy");
+        btnCancel.setTextColor(ThemeTokens.getAccentColor(ctx));
+        btnCancel.setTextSize(17);
+        btnCancel.setGravity(Gravity.CENTER);
+        btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(ctx, 52)));
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        cancelCard.addView(btnCancel);
+        sheet.addView(cancelCard);
+
+        show(dialog, sheet);
+    }
+
     public static void showInputDialog(Context ctx, String title, String subtitle, String initialText, String confirmText,
                                        InputValidator validator, InputCallback callback) {
         Dialog dialog = createBaseDialog(ctx);

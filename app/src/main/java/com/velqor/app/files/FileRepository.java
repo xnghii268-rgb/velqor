@@ -100,6 +100,20 @@ public final class FileRepository {
         return f.delete();
     }
 
+    public static boolean clearDirectoryContents(File dir) {
+        if (dir == null || !dir.exists() || !dir.isDirectory()) return false;
+        File[] children = dir.listFiles();
+        boolean success = true;
+        if (children != null) {
+            for (File child : children) {
+                if (!deleteRecursive(child)) {
+                    success = false;
+                }
+            }
+        }
+        return success;
+    }
+
     public static void copy(File src, File dest) throws IOException {
         if (src.isDirectory()) {
             dest.mkdirs();

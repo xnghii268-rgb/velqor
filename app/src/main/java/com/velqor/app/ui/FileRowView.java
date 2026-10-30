@@ -32,6 +32,7 @@ public class FileRowView extends LinearLayout {
     public interface OnFileRowClickListener {
         void onClick(File f);
         void onLongClick(File f);
+        void onIconClick(File f);
     }
 
     public static View createRow(Context ctx, File f, boolean isLast, boolean isSelected, boolean isSelectionMode, OnFileRowClickListener listener) {
@@ -71,6 +72,10 @@ public class FileRowView extends LinearLayout {
                     ThemeTokens.dp(ctx, 22), ThemeTokens.dp(ctx, 22));
             clp.rightMargin = ThemeTokens.dp(ctx, 12);
             check.setLayoutParams(clp);
+            attachTapSpringEffect(check);
+            check.setOnClickListener(v -> {
+                if (listener != null) listener.onIconClick(f);
+            });
             row.addView(check);
         }
 
@@ -120,6 +125,15 @@ public class FileRowView extends LinearLayout {
             playIcon.setLayoutParams(playLp);
             iconBox.addView(playIcon);
         }
+
+        attachTapSpringEffect(iconBox);
+        iconBox.setOnClickListener(v -> {
+            if (listener != null) listener.onIconClick(f);
+        });
+        iconBox.setOnLongClickListener(v -> {
+            if (listener != null) listener.onLongClick(f);
+            return true;
+        });
 
         row.addView(iconBox);
 
@@ -251,6 +265,15 @@ public class FileRowView extends LinearLayout {
         if (showThumbs && !f.isDirectory()) {
             ThumbnailLoader.getInstance(ctx).loadThumbnail(f, iv);
         }
+
+        attachTapSpringEffect(iconBox);
+        iconBox.setOnClickListener(v -> {
+            if (listener != null) listener.onIconClick(f);
+        });
+        iconBox.setOnLongClickListener(v -> {
+            if (listener != null) listener.onLongClick(f);
+            return true;
+        });
 
         card.addView(iconBox);
 

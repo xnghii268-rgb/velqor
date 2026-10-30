@@ -1,18 +1,24 @@
-# Velqor v2.2.0 - Transparent Navigation Bar & Liquid Glass Refinement
+# Velqor v2.2.0 - Icon Selection & Enhanced 3-Dot Batch Actions
+
+- FileRowView.java:
+  - Added onIconClick callback in OnFileRowClickListener.
+  - Attached spring tap animations and dedicated click listeners to iconBox and selection check icon, allowing instant selection by tapping the icon without opening the item.
 
 - MainActivity.java:
-  - Enabled true edge-to-edge transparent navigation bar via Window.setNavigationBarContrastEnforced(false) and Window.setStatusBarContrastEnforced(false) on API 29+.
-  - Enabled Window.setDecorFitsSystemWindows(false) on API 30+ and light status/navigation bar icons for light mode.
-  - Dynamically resolved WindowInsets (navigationBars & ime) to position floating tab bar and hide automatically when keyboard is active.
-  - Eliminated opaque 0xE6000000 bottom gradient scrim so content flows directly through the transparent navigation bar.
+  - Implemented onIconClick: activates selection mode immediately on icon tap, adds item to selection with haptic feedback, or toggles selection if already in selection mode.
+  - Enhanced 3-dot ("3 chấm") options sheet with comprehensive actions:
+    - Chọn tất cả trong thư mục (Select all items in folder).
+    - Đảo lựa chọn (Invert selection).
+    - Nén thành ZIP.
+    - Xóa tất cả mục đã chọn.
+    - Giữ thư mục, chỉ xóa tệp (Keep folders, delete files only).
+    - Giữ tệp, chỉ xóa thư mục (Keep files, delete folders only).
+    - Giữ mục đã chọn, xóa các mục còn lại (Keep selected items, delete unselected items in current folder).
+    - Xóa sạch nội dung, giữ vỏ thư mục (Clear contents inside selected folders, keep empty directory shells).
+  - Enhanced batch delete sheet with folder/file filtering options when selection contains both types.
 
-- ThemeTokens.java:
-  - Adjusted COLOR_SURFACE_GLASS_DARK to 0x80181920 (~50% alpha smoked glass) and COLOR_SURFACE_GLASS_LIGHT to 0x80FFFFFF for translucent liquid glass look.
+- IosSheet.java:
+  - Added showDangerConfirmDialog for iOS-style destructive action confirmations.
 
-- BlurBackdropView.java:
-  - Reduced RenderNode blur tint overlay to 0x5516171E (33% tint) and added upper specular reflection.
-  - Upgraded fallback rendering to translucent surface glass with specular dome highlight.
-
-- FloatingTabBar.java:
-  - Added soft 2-layer ambient and key shadows via Canvas drawRoundRect.
-  - Disabled default Android view elevation to remove hard border edges.
+- FileRepository.java:
+  - Added clearDirectoryContents(File dir) to wipe child items while preserving the directory.
