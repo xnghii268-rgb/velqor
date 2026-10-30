@@ -191,7 +191,12 @@ public class TestRunner {
             assertTrue("Moved target exists", targetMove.exists());
             assertTrue("Source file no longer exists after move", !fileA.exists());
 
-            
+            boolean cleared = FileRepository.clearDirectoryContents(subDir);
+            assertTrue("Clear directory contents succeeded", cleared);
+            assertTrue("Subdir still exists", subDir.exists());
+            File[] remaining = subDir.listFiles();
+            assertTrue("Subdir is empty after clear", remaining != null && remaining.length == 0);
+
             boolean deleted = FileRepository.deleteRecursive(testDir);
             assertTrue("Delete recursive cleaned up folder", deleted);
             assertTrue("Folder gone", !testDir.exists());

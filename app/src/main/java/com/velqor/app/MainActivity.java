@@ -62,6 +62,7 @@ import com.velqor.app.ui.TextEditorActivity;
 import java.io.File;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -605,6 +606,8 @@ public class MainActivity extends Activity {
                     if (clickedFile.isDirectory()) {
                         mCurrentDir = clickedFile;
                         refreshDirectory();
+                    } else if (ZipManager.isArchive(clickedFile)) {
+                        showArchiveInspectorSheet(clickedFile);
                     } else if (ImageViewerActivity.isImageFile(clickedFile)) {
                         openImageViewer(clickedFile);
                     } else if (TextFileIO.isTextFile(clickedFile)) {
@@ -921,6 +924,10 @@ public class MainActivity extends Activity {
         }, isArch));
 
         if (isArch) {
+            group3.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive, "Duyệt & Xem nội dung ZIP", false, v -> {
+                dialog.dismiss();
+                showArchiveInspectorSheet(f);
+            }, true));
             group3.addView(IosSheet.createActionRow(this, R.drawable.ic_unzip, "Giải nén tại đây", false, v -> {
                 dialog.dismiss();
                 extractZipAsync(f, mCurrentDir);
@@ -1646,12 +1653,16 @@ public class MainActivity extends Activity {
         }, false));
         sheet.addView(groupSelection);
 
-        LinearLayout groupZip = IosSheet.createActionGroup(this);
-        groupZip.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive, "Nén thành ZIP", false, v -> {
+        LinearLayout groupActions = IosSheet.createActionGroup(this);
+        groupActions.addView(IosSheet.createActionRow(this, R.drawable.ic_rename, "Đổi tên hàng loạt", false, v -> {
+            dialog.dismiss();
+            showBatchRenameDialog();
+        }, true));
+        groupActions.addView(IosSheet.createActionRow(this, R.drawable.ic_file_archive, "Nén thành ZIP", false, v -> {
             dialog.dismiss();
             compressSelected();
         }, false));
-        sheet.addView(groupZip);
+        sheet.addView(groupActions);
 
         LinearLayout groupDelete = IosSheet.createActionGroup(this);
         groupDelete.addView(IosSheet.createActionRow(this, R.drawable.ic_delete, "Xóa tất cả mục đã chọn (" + totalCount + ")", true, v -> {
@@ -1687,9 +1698,157 @@ public class MainActivity extends Activity {
         IosSheet.show(dialog, sheet);
     }
 
-    
-    
-    
+    private void showBatchRenameDialog() {
+        if (mSelectedPaths.isEmpty()) return;
+        Dialog dialog = createManagedDialog();
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Đổi tên " + mSelectedPaths.size() + " mục");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        LinearLayout card = IosSheet.createActionGroup(this);
+        card.setPadding(ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16),
+                ThemeTokens.dp(this, 16), ThemeTokens.dp(this, 16));
+
+        TextView lbl1 = new TextView(this);
+        lbl1.setText("Tên cơ sở (Đánh số: Mẫu_01, Mẫu_02...):");
+        lbl1.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        lbl1.setTextSize(13);
+        card.addView(lbl1);
+
+        EditText inputBase = new EditText(this);
+        inputBase.setHint("Ví dụ: Tệp_");
+        inputBase.setTextColor(ThemeTokens.getLabelColor(this));
+        inputBase.setHintTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        inputBase.setBackgroundColor(Color.TRANSPARENT);
+        inputBase.setTextSize(16);
+        inputBase.setSingleLine(true);
+        inputBase.setPadding(0, ThemeTokens.dp(this, 8), 0, ThemeTokens.dp(this, 12));
+        card.addView(inputBase);
+
+        View div = new View(this);
+        div.setBackgroundColor(ThemeTokens.getSeparatorInsetColor(this));
+        div.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, Math.max(1, ThemeTokens.dp(this, 1) / 2)));
+        card.addView(div);
+
+        TextView lbl2 = new TextView(this);
+        lbl2.setText("Hoặc Thay thế chuỗi (Tìm kiếm -> Thay bằng):");
+        lbl2.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        lbl2.setTextSize(13);
+        lbl2.setPadding(0, ThemeTokens.dp(this, 12), 0, 0);
+        card.addView(lbl2);
+
+        LinearLayout repRow = new LinearLayout(this);
+        repRow.setOrientation(LinearLayout.HORIZONTAL);
+        repRow.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        EditText inputFind = new EditText(this);
+        inputFind.setHint("Tìm từ khóa");
+        inputFind.setTextColor(ThemeTokens.getLabelColor(this));
+        inputFind.setHintTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        inputFind.setBackgroundColor(Color.TRANSPARENT);
+        inputFind.setTextSize(14);
+        inputFind.setSingleLine(true);
+        inputFind.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        repRow.addView(inputFind);
+
+        EditText inputReplace = new EditText(this);
+        inputReplace.setHint("Thay bằng");
+        inputReplace.setTextColor(ThemeTokens.getLabelColor(this));
+        inputReplace.setHintTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        inputReplace.setBackgroundColor(Color.TRANSPARENT);
+        inputReplace.setTextSize(14);
+        inputReplace.setSingleLine(true);
+        inputReplace.setLayoutParams(new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        repRow.addView(inputReplace);
+
+        card.addView(repRow);
+        sheet.addView(card);
+
+        LinearLayout btnCard = IosSheet.createActionGroup(this);
+        TextView btnConfirm = new TextView(this);
+        btnConfirm.setText("Thực hiện đổi tên");
+        btnConfirm.setTextColor(ThemeTokens.getAccentColor(this));
+        btnConfirm.setTextSize(17);
+        btnConfirm.setTypeface(Typeface.DEFAULT_BOLD);
+        btnConfirm.setGravity(Gravity.CENTER);
+        btnConfirm.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 48)));
+        btnConfirm.setOnClickListener(v -> {
+            String base = inputBase.getText().toString().trim();
+            String find = inputFind.getText().toString();
+            String replace = inputReplace.getText().toString();
+            dialog.dismiss();
+            executeBatchRename(base, find, replace);
+        });
+        btnCard.addView(btnConfirm);
+        sheet.addView(btnCard);
+
+        LinearLayout cancelCard = IosSheet.createActionGroup(this);
+        TextView btnCancel = new TextView(this);
+        btnCancel.setText("Hủy");
+        btnCancel.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        btnCancel.setTextSize(17);
+        btnCancel.setGravity(Gravity.CENTER);
+        btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 52)));
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        cancelCard.addView(btnCancel);
+        sheet.addView(cancelCard);
+
+        IosSheet.show(dialog, sheet);
+    }
+
+    private void executeBatchRename(String basePattern, String findStr, String replaceStr) {
+        if (mSelectedPaths.isEmpty()) return;
+        List<File> list = new ArrayList<>();
+        for (String p : mSelectedPaths) {
+            File f = new File(p);
+            if (f.exists() || WirelessDebugManager.isAndroidDataPath(f)) {
+                list.add(f);
+            }
+        }
+        Collections.sort(list, (a, b) -> a.getName().compareToIgnoreCase(b.getName()));
+
+        int renamedCount = 0;
+        int total = list.size();
+        int digits = total >= 100 ? 3 : 2;
+
+        for (int i = 0; i < total; i++) {
+            File f = list.get(i);
+            String oldName = f.getName();
+            String newName = oldName;
+
+            if (!basePattern.isEmpty()) {
+                String ext = "";
+                if (!f.isDirectory()) {
+                    int dot = oldName.lastIndexOf('.');
+                    if (dot >= 0) {
+                        ext = oldName.substring(dot);
+                    }
+                }
+                String numStr = String.format(Locale.US, "%0" + digits + "d", i + 1);
+                newName = basePattern + numStr + ext;
+            } else if (!findStr.isEmpty()) {
+                newName = oldName.replace(findStr, replaceStr);
+            }
+
+            if (!newName.equals(oldName)) {
+                try {
+                    if (FileRepository.rename(f, newName)) {
+                        renamedCount++;
+                    }
+                } catch (Throwable ignored) {}
+            }
+        }
+
+        exitSelectionMode();
+        refreshDirectory();
+        Toast.makeText(this, "Đã đổi tên thành công " + renamedCount + " mục", Toast.LENGTH_SHORT).show();
+    }
+
     private void openImageViewer(File f) {
         Intent intent = new Intent(this, ImageViewerActivity.class);
         intent.putExtra(ImageViewerActivity.EXTRA_PATH, f.getAbsolutePath());
@@ -2891,14 +3050,167 @@ public class MainActivity extends Activity {
                         "Tệp nén: " + FileRowView.formatSize(b.archivesBytes), false, null, true));
                 cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_info,
                         "Tệp lớn >50MB (" + b.largeFiles.size() + " tệp)", false, v -> {
-                    Toast.makeText(this, "Có " + b.largeFiles.size() + " tệp lớn hơn 50MB", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                    showLargeFilesSheet(b.largeFiles);
                 }, true));
                 cardDetails.addView(IosSheet.createActionRow(this, R.drawable.ic_copy,
                         "Tệp trùng lặp (" + b.duplicateGroups.size() + " nhóm)", false, v -> {
-                    Toast.makeText(this, "Có " + b.duplicateGroups.size() + " nhóm tệp trùng lặp", Toast.LENGTH_SHORT).show();
+                    dialog.dismiss();
+                    showDuplicateFilesSheet(b.duplicateGroups);
                 }, false));
             });
         }).start();
+
+        IosSheet.show(dialog, sheet);
+    }
+
+    private void showLargeFilesSheet(List<File> largeFiles) {
+        if (largeFiles == null || largeFiles.isEmpty()) {
+            Toast.makeText(this, "Không có tệp nào lớn hơn 50MB", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Dialog dialog = createManagedDialog();
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Tệp lớn (" + largeFiles.size() + " tệp)");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        long totalLargeSize = 0;
+        for (File f : largeFiles) totalLargeSize += f.length();
+        TextView sub = new TextView(this);
+        sub.setText("Tổng dung lượng chiếm dụng: " + FileRowView.formatSize(totalLargeSize));
+        sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        sub.setTextSize(13);
+        sheet.addView(sub);
+
+        ScrollView sv = new ScrollView(this);
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 360));
+        svLp.topMargin = ThemeTokens.dp(this, 12);
+        sv.setLayoutParams(svLp);
+
+        LinearLayout listCard = IosSheet.createActionGroup(this);
+        for (int i = 0; i < largeFiles.size(); i++) {
+            File f = largeFiles.get(i);
+            boolean isLast = (i == largeFiles.size() - 1);
+            int icon = FileRowView.getIconResourceForFile(f);
+            String label = f.getName() + " (" + FileRowView.formatSize(f.length()) + ")";
+            listCard.addView(IosSheet.createActionRow(this, icon, label, false, v -> {
+                dialog.dismiss();
+                showFileActionSheet(f);
+            }, !isLast));
+        }
+        sv.addView(listCard);
+        sheet.addView(sv);
+
+        LinearLayout cancelCard = IosSheet.createActionGroup(this);
+        TextView btnCancel = new TextView(this);
+        btnCancel.setText("Đóng");
+        btnCancel.setTextColor(ThemeTokens.getAccentColor(this));
+        btnCancel.setTextSize(17);
+        btnCancel.setGravity(Gravity.CENTER);
+        btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 52)));
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        cancelCard.addView(btnCancel);
+        sheet.addView(cancelCard);
+
+        IosSheet.show(dialog, sheet);
+    }
+
+    private void showDuplicateFilesSheet(List<StorageScanner.FileDuplicateGroup> dupGroups) {
+        if (dupGroups == null || dupGroups.isEmpty()) {
+            Toast.makeText(this, "Không phát hiện tệp trùng lặp nào", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Dialog dialog = createManagedDialog();
+        LinearLayout sheet = IosSheet.createSheetRoot(this, dialog);
+
+        TextView title = new TextView(this);
+        title.setText("Tệp trùng lặp (" + dupGroups.size() + " nhóm)");
+        title.setTextSize(20);
+        title.setTextColor(ThemeTokens.getLabelColor(this));
+        title.setTypeface(Typeface.DEFAULT_BOLD);
+        sheet.addView(title);
+
+        long reclaimableBytes = 0;
+        int totalDuplicateFiles = 0;
+        for (StorageScanner.FileDuplicateGroup g : dupGroups) {
+            if (g.files.size() > 1) {
+                reclaimableBytes += g.size * (g.files.size() - 1);
+                totalDuplicateFiles += g.files.size() - 1;
+            }
+        }
+
+        TextView sub = new TextView(this);
+        sub.setText("Có thể giải phóng: " + FileRowView.formatSize(reclaimableBytes));
+        sub.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        sub.setTextSize(13);
+        sheet.addView(sub);
+
+        ScrollView sv = new ScrollView(this);
+        LinearLayout.LayoutParams svLp = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 320));
+        svLp.topMargin = ThemeTokens.dp(this, 12);
+        sv.setLayoutParams(svLp);
+
+        LinearLayout listCard = IosSheet.createActionGroup(this);
+        for (int i = 0; i < dupGroups.size(); i++) {
+            StorageScanner.FileDuplicateGroup g = dupGroups.get(i);
+            boolean isLast = (i == dupGroups.size() - 1);
+            String label = g.files.get(0).getName() + " (" + g.files.size() + " bản sao · " + FileRowView.formatSize(g.size) + ")";
+            listCard.addView(IosSheet.createActionRow(this, R.drawable.ic_copy, label, false, v -> {
+                dialog.dismiss();
+                showFileActionSheet(g.files.get(0));
+            }, !isLast));
+        }
+        sv.addView(listCard);
+        sheet.addView(sv);
+
+        final int dupCount = totalDuplicateFiles;
+        LinearLayout btnCleanCard = IosSheet.createActionGroup(this);
+        TextView btnClean = new TextView(this);
+        btnClean.setText("Dọn dẹp " + dupCount + " bản sao (Giữ 1 bản gốc)");
+        btnClean.setTextColor(ThemeTokens.COLOR_DANGER);
+        btnClean.setTextSize(17);
+        btnClean.setTypeface(Typeface.DEFAULT_BOLD);
+        btnClean.setGravity(Gravity.CENTER);
+        btnClean.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 48)));
+        btnClean.setOnClickListener(v -> {
+            dialog.dismiss();
+            IosSheet.showDangerConfirmDialog(this,
+                    "Xóa " + dupCount + " bản sao trùng lặp?",
+                    "Mỗi nhóm sẽ giữ lại 1 tệp gốc duy nhất và xóa bỏ các tệp trùng còn lại.",
+                    "Xóa bản sao",
+                    () -> {
+                        int deleted = 0;
+                        for (StorageScanner.FileDuplicateGroup g : dupGroups) {
+                            for (int k = 1; k < g.files.size(); k++) {
+                                if (FileRepository.deleteRecursive(g.files.get(k))) {
+                                    deleted++;
+                                }
+                            }
+                        }
+                        refreshDirectory();
+                        Toast.makeText(this, "Đã giải phóng dung lượng, xóa " + deleted + " tệp trùng", Toast.LENGTH_SHORT).show();
+                    });
+        });
+        btnCleanCard.addView(btnClean);
+        sheet.addView(btnCleanCard);
+
+        LinearLayout cancelCard = IosSheet.createActionGroup(this);
+        TextView btnCancel = new TextView(this);
+        btnCancel.setText("Đóng");
+        btnCancel.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
+        btnCancel.setTextSize(17);
+        btnCancel.setGravity(Gravity.CENTER);
+        btnCancel.setLayoutParams(new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ThemeTokens.dp(this, 52)));
+        btnCancel.setOnClickListener(v -> dialog.dismiss());
+        cancelCard.addView(btnCancel);
+        sheet.addView(cancelCard);
 
         IosSheet.show(dialog, sheet);
     }

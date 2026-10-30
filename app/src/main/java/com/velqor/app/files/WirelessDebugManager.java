@@ -319,4 +319,47 @@ public final class WirelessDebugManager {
         }
         return list.toArray(new File[0]);
     }
+
+    public static boolean runShizukuShellCommand(String command) {
+        if (!isShizukuRunning() || !isShizukuPermissionGranted()) return false;
+        try {
+            Method newProcessMethod = getNewProcessMethod();
+            if (newProcessMethod != null) {
+                String[] cmd = new String[]{"/system/bin/sh", "-c", command};
+                Process process = (Process) newProcessMethod.invoke(null, cmd, null, null);
+                if (process != null) {
+                    int exit = process.waitFor();
+                    return exit == 0;
+                }
+            }
+        } catch (Throwable ignored) {}
+        return false;
+    }
+
+    public static boolean deleteViaShizuku(File f) {
+        if (f == null) return false;
+        return runShizukuShellCommand("rm -rf \"" + f.getAbsolutePath() + "\"");
+    }
+
+    public static boolean createDirectoryViaShizuku(File parent, String name) {
+        if (parent == null || name == null || name.isEmpty()) return false;
+        File dir = new File(parent, name);
+        return runShizukuShellCommand("mkdir -p \"" + dir.getAbsolutePath() + "\"");
+    }
+
+    public static boolean renameViaShizuku(File src, String newName) {
+        if (src == null || newName == null || newName.isEmpty()) return false;
+        File target = new File(src.getParentFile(), newName);
+        return runShizukuShellCommand("mv \"" + src.getAbsolutePath() + "\" \"" + target.getAbsolutePath() + "\"");
+    }
+
+    public static boolean copyViaShizuku(File src, File dest) {
+        if (src == null || dest == null) return false;
+        return runShizukuShellCommand("cp -rf \"" + src.getAbsolutePath() + "\" \"" + dest.getAbsolutePath() + "\"");
+    }
+
+    public static boolean moveViaShizuku(File src, File dest) {
+        if (src == null || dest == null) return false;
+        return runShizukuShellCommand("mv \"" + src.getAbsolutePath() + "\" \"" + dest.getAbsolutePath() + "\"");
+    }
 }

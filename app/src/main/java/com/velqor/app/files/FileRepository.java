@@ -88,7 +88,11 @@ public final class FileRepository {
     }
 
     public static boolean deleteRecursive(File f) {
-        if (f == null || !f.exists()) return true;
+        if (f == null) return true;
+        if (WirelessDebugManager.isAndroidDataPath(f) && WirelessDebugManager.isShizukuPermissionGranted()) {
+            return WirelessDebugManager.deleteViaShizuku(f);
+        }
+        if (!f.exists()) return true;
         if (f.isDirectory()) {
             File[] children = f.listFiles();
             if (children != null) {
@@ -101,7 +105,12 @@ public final class FileRepository {
     }
 
     public static boolean clearDirectoryContents(File dir) {
-        if (dir == null || !dir.exists() || !dir.isDirectory()) return false;
+        if (dir == null) return false;
+        if (WirelessDebugManager.isAndroidDataPath(dir) && WirelessDebugManager.isShizukuPermissionGranted()) {
+            WirelessDebugManager.runShizukuShellCommand("rm -rf \"" + dir.getAbsolutePath() + "\"/*");
+            return true;
+        }
+        if (!dir.exists() || !dir.isDirectory()) return false;
         File[] children = dir.listFiles();
         boolean success = true;
         if (children != null) {
@@ -115,6 +124,12 @@ public final class FileRepository {
     }
 
     public static void copy(File src, File dest) throws IOException {
+        if (src == null || dest == null) return;
+        if ((WirelessDebugManager.isAndroidDataPath(src) || WirelessDebugManager.isAndroidDataPath(dest)) &&
+                WirelessDebugManager.isShizukuPermissionGranted()) {
+            WirelessDebugManager.copyViaShizuku(src, dest);
+            return;
+        }
         if (src.isDirectory()) {
             dest.mkdirs();
             File[] children = src.listFiles();
@@ -138,14 +153,24 @@ public final class FileRepository {
     }
 
     public static void move(File src, File dest) throws IOException {
+        if (src == null || dest == null) return;
+        if ((WirelessDebugManager.isAndroidDataPath(src) || WirelessDebugManager.isAndroidDataPath(dest)) &&
+                WirelessDebugManager.isShizukuPermissionGranted()) {
+            WirelessDebugManager.moveViaShizuku(src, dest);
+            return;
+        }
         if (src.renameTo(dest)) return;
-        
+
         copy(src, dest);
         deleteRecursive(src);
     }
 
     public static boolean rename(File src, String newName) throws IllegalArgumentException {
-        if (src == null || !src.exists()) return false;
+        if (src == null) return false;
+        if (WirelessDebugManager.isAndroidDataPath(src) && WirelessDebugManager.isShizukuPermissionGranted()) {
+            return WirelessDebugManager.renameViaShizuku(src, newName);
+        }
+        if (!src.exists()) return false;
         File target = new File(src.getParentFile(), newName);
         if (target.exists()) {
             throw new IllegalArgumentException("Tên '" + newName + "' đã tồn tại trong thư mục này!");
@@ -154,6 +179,10 @@ public final class FileRepository {
     }
 
     public static boolean createDirectory(File parent, String dirName) throws IllegalArgumentException {
+        if (parent == null || dirName == null || dirName.isEmpty()) return false;
+        if (WirelessDebugManager.isAndroidDataPath(parent) && WirelessDebugManager.isShizukuPermissionGranted()) {
+            return WirelessDebugManager.createDirectoryViaShizuku(parent, dirName);
+        }
         File target = new File(parent, dirName);
         if (target.exists()) {
             throw new IllegalArgumentException("Thư mục '" + dirName + "' đã tồn tại!");
