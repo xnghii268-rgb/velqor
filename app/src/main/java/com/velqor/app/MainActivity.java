@@ -2296,7 +2296,7 @@ public class MainActivity extends Activity {
         String themeMode = prefs.getString("theme_mode", "dark");
         int accentColor = ThemeTokens.getAccentColor(this);
 
-        View profileCard = SettingsViewHelper.createProfileCard(this, "VELQOR PRO", "v2.1.2 (Build 17)", v -> showAboutSheet());
+        View profileCard = SettingsViewHelper.createProfileCard(this, "VELQOR PRO", "v2.3.0 (Build 20)", v -> showAboutSheet());
         mFileListGroup.addView(profileCard);
 
         mFileListGroup.addView(SettingsViewHelper.createGroupHeader(this, "Giao diện"));
@@ -2377,7 +2377,7 @@ public class MainActivity extends Activity {
         LinearLayout gInfo = SettingsViewHelper.createGroupCard(this);
 
         gInfo.addView(SettingsViewHelper.createRow(this, R.drawable.ic_info, 0xFF8E8E93,
-                "Phiên bản", "v2.1.2 (Build 17)", true, v -> showAboutSheet(), true));
+                "Phiên bản", "v2.3.0 (Build 20)", true, v -> showAboutSheet(), true));
 
         gInfo.addView(SettingsViewHelper.createRow(this, R.drawable.ic_star, 0xFF007AFF,
                 "Giới thiệu VELQOR", "", true, v -> showAboutSheet(), false));
@@ -2771,7 +2771,7 @@ public class MainActivity extends Activity {
         card.addView(title);
 
         TextView ver = new TextView(this);
-        ver.setText("Phiên bản v2.1.2 (Build 17) · Apple Liquid Glass");
+        ver.setText("Phiên bản v2.3.0 (Build 20) · Apple Liquid Glass");
         ver.setTextColor(ThemeTokens.getSecondaryLabelColor(this));
         ver.setTextSize(13);
         ver.setGravity(Gravity.CENTER);

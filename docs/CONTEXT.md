@@ -1,4 +1,4 @@
-# CONTEXT — VELQOR PRO (v2.2.0)
+# CONTEXT — VELQOR PRO (v2.3.0)
 
 ## 1. Dự án là gì
 - **Slug**: `velqor`
@@ -21,10 +21,10 @@
 ## 3. Cách chạy & Đóng gói
 - Build toàn bộ: `bash tools/build_apk.sh` (aapt2, javac, d8 đa thư viện và ký apksigner).
 - Test suite: `bash tools/test_runner.sh` (93/93 tests passed - 100%).
-- Đích bàn giao: `/sdcard/AntiGravity/velqor-v2.2.0.apk` (555 KB).
+- Đích bàn giao: `/sdcard/AntiGravity/velqor-v2.3.0.apk` (555 KB).
 - Patch: `/sdcard/AntiGravity/velqor-patch.zip`.
 
-## 4. Trạng thái hiện tại (v2.2.0 - Build 19)
+## 4. Trạng thái hiện tại (v2.3.0 - Build 20)
 - **Thao tác Shizuku toàn diện trên Android/data & obb**:
   - Hỗ trợ đầy đủ lệnh xóa (`deleteRecursive`), tạo thư mục, đổi tên, sao chép, di chuyển qua Shizuku UID 2000 shell.
 - **Thanh điều hướng nổi & Kính trong suốt**:
